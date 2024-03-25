@@ -4,9 +4,20 @@
 #include "CytronMotorDriver.h"          // Library for the Cytron MDD10 motor driver
 
 /*
+Define pin constancts
+*/
+const byte rpmSignalPin = 19;          // Words here
+
+/*
 Configure the motor driver.
 */
 CytronMD throttleBodyMotor(PWM_DIR, 3, 4);          // PWM = Pin 3, DIR = Pin 4.
+
+/*
+Define our pretty tiny scheduler objects / tasks
+*/
+ptScheduler ptReadBoostValvePosition = ptScheduler(PT_TIME_50MS);
+ptScheduler ptReadBoostPressure      = ptScheduler(PT_TIME_50MS);
 
 /*
 Perform setup actions
