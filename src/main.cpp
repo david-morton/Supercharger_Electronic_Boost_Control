@@ -1,18 +1,26 @@
 #include <Arduino.h>
+#include <Wire.h>
+#include <ptScheduler.h>                // The task scheduling library of choice
+#include "CytronMotorDriver.h"          // Library for the Cytron MDD10 motor driver
 
-// put function declarations here:
-int myFunction(int, int);
+/*
+Configure the motor driver.
+*/
+CytronMD throttleBodyMotor(PWM_DIR, 3, 4);          // PWM = Pin 3, DIR = Pin 4.
 
+/*
+Perform setup actions
+*/
 void setup() {
-  // put your setup code here, to run once:
-  int result = myFunction(2, 3);
+  SERIAL_PORT_MONITOR.begin(115200);    // Hardware serial port for debugging
+  while (!Serial) { };                  // Wait for serial port to open for debug
+  SERIAL_PORT_HARDWARE1.begin(500000);  // Hardware serial port for comms to 'master'
 }
 
+/*
+Main execution loop
+*/
 void loop() {
-  // put your main code here, to run repeatedly:
-}
-
-// put function definitions here:
-int myFunction(int x, int y) {
-  return x + y;
+  throttleBodyMotor.setSpeed(128);                  // Run forward at 50% speed.
+  throttleBodyMotor.setSpeed(-128);                 // Run backward at 50% speed.
 }
