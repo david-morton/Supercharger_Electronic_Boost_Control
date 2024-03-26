@@ -3,6 +3,8 @@
 #include <ptScheduler.h>                // The task scheduling library of choice
 #include "CytronMotorDriver.h"          // Library for the Cytron MDD10 motor driver
 
+#include "boostValveControl.h"
+
 /*
 Define variables
 */
@@ -33,6 +35,10 @@ void setup() {
 Main execution loop
 */
 void loop() {
-  boostValveMotor.setSpeed(128);                  // Run forward at 50% speed
-  boostValveMotor.setSpeed(-128);                 // Run backward at 50% speed
+  // boostValveMotor.setSpeed(128);                  // Run forward at 50% speed
+  // boostValveMotor.setSpeed(-128);                 // Run backward at 50% speed
+  if (ptGetBoostValvePosition.call()) {
+    getBoostValvePosition();
+  }
+  
 }
