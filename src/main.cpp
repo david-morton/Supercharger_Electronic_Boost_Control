@@ -4,20 +4,21 @@
 #include "CytronMotorDriver.h"          // Library for the Cytron MDD10 motor driver
 
 /*
-Define pin constancts
+Define variables
 */
-const byte rpmSignalPin = 19;          // Words here
+float currentBoostValvePosition;
+float boostValvePositionTarget;
 
 /*
 Configure the motor driver.
 */
-CytronMD throttleBodyMotor(PWM_DIR, 3, 4);          // PWM = Pin 3, DIR = Pin 4.
+CytronMD boostValveMotor(PWM_DIR, 3, 4);          // PWM = Pin 3, DIR = Pin 4
 
 /*
 Define our pretty tiny scheduler objects / tasks
 */
-ptScheduler ptReadBoostValvePosition = ptScheduler(PT_TIME_50MS);
-ptScheduler ptReadBoostPressure      = ptScheduler(PT_TIME_50MS);
+ptScheduler ptGetBoostValvePosition     = ptScheduler(PT_TIME_50MS);
+ptScheduler ptReadManifoldBoostPressure = ptScheduler(PT_TIME_50MS);
 
 /*
 Perform setup actions
@@ -32,6 +33,6 @@ void setup() {
 Main execution loop
 */
 void loop() {
-  throttleBodyMotor.setSpeed(128);                  // Run forward at 50% speed.
-  throttleBodyMotor.setSpeed(-128);                 // Run backward at 50% speed.
+  boostValveMotor.setSpeed(128);                  // Run forward at 50% speed
+  boostValveMotor.setSpeed(-128);                 // Run backward at 50% speed
 }
