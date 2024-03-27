@@ -6,6 +6,7 @@
 /*
 Define function prototypes
 */
-float getBoostValvePosition();
+float getBoostValveOpenPercentage();
+void setBoostValveTravelLimits();
 
 #endif
