@@ -1,4 +1,5 @@
 #include "boostValveControl.h"
+#include <PID_v1.h>
 
 /*
 Define pin constants
@@ -47,3 +48,8 @@ float getBoostValveOpenPercentage(){
         return boostValveOpenPercentage;
     }
 }
+
+// 0.037 volts per degree roughly
+
+// Rapid move to 10 degrees from closed = 0.45V + (10 * 0.037) = 0.82V sensor voltage
+// Move more slowly looking at commanded vs achieved until we can see 

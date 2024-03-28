@@ -1,7 +1,7 @@
+#include "CytronMotorDriver.h" // Library for the Cytron MDD10 motor driver
 #include <Arduino.h>
 #include <Wire.h>
-#include <ptScheduler.h>                // The task scheduling library of choice
-#include "CytronMotorDriver.h"          // Library for the Cytron MDD10 motor driver
+#include <ptScheduler.h> // The task scheduling library of choice
 
 #include "boostValveControl.h"
 
