@@ -3,6 +3,7 @@
 #include <ptScheduler.h>       // The task scheduling library of choice
 
 #include "boostValveControl.h"
+#include "boostValveSetup.h"
 #include "sensorsSendReceive.h"
 
 /*
@@ -17,6 +18,7 @@ float currentBoostValvePosition;
 float boostValvePositionTarget;
 float inputPotentiometerVoltage;
 float motorPotentiometerVoltage;
+int desiredManifoldPressure = 5;  // Boost level in PSI
 
 /*
 Define our pretty tiny scheduler objects / tasks
@@ -48,8 +50,6 @@ void loop() {
   }
 
   // Get and set current manifold pressure
-
-  // Get desired manifold / boost pressure
 
   // Drive towards target manifold / boost pressure
   
