@@ -10,7 +10,7 @@ int boostValvePositionReading;
 /*
 Define function - Determine current boost valve position percentage
 */
-float getBoostValveOpenPercentage(const byte signalPin, int* positionReadingMinimum, int* positionReadingMaximum) {
+float getBoostValveOpenPercentage(const byte signalPin, int *positionReadingMinimum, int *positionReadingMaximum) {
   const int numReadings = 20; // Number of readings to average
   int totalReadings = 0;
 
@@ -30,8 +30,7 @@ float getBoostValveOpenPercentage(const byte signalPin, int* positionReadingMini
   } else if (averageReading <= *positionReadingMinimum) {
     return 0.0;
   } else {
-    float boostValveOpenPercentage = ((averageReading - *positionReadingMinimum) /
-                                      (*positionReadingMaximum - *positionReadingMinimum)) * 100.0;
+    float boostValveOpenPercentage = ((averageReading - *positionReadingMinimum) / (*positionReadingMaximum - *positionReadingMinimum)) * 100.0;
     return boostValveOpenPercentage;
   }
 }

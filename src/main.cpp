@@ -1,16 +1,16 @@
 #include <Arduino.h>
 #include <Wire.h>
-#include <ptScheduler.h>       // The task scheduling library of choice
+#include <ptScheduler.h> // The task scheduling library of choice
 
 #include "boostValveControl.h"
 #include "boostValveSetup.h"
-#include "sensorsSendReceive.h"
 #include "calculateDesiredBoost.h"
+#include "sensorsSendReceive.h"
 
 /*
 Define pin constants
 */
-const byte boostValvePositionSignalPin     = A14;
+const byte boostValvePositionSignalPin = A14;
 const byte manifoldPressureSensorSignalPin = A15;
 
 /*
@@ -24,25 +24,26 @@ int boostValvePositionReadingMaximum; // Throttle blade open, release all of the
 
 float currentDesiredBoostPsi = 0;
 
-int currentVehicleGear  = 29;          // Will be updated via serial comms from master
-int currentVehicleSpeed = 54;          // Will be updated via serial comms from master
-int currentVehicleRpm   = 6555;          // Will be updated via serial comms from master
-bool clutchPressed      = false;       // Will be updated via serial comms from master
+int currentVehicleGear = 29;  // Will be updated via serial comms from master
+int currentVehicleSpeed = 54; // Will be updated via serial comms from master
+int currentVehicleRpm = 6555; // Will be updated via serial comms from master
+bool clutchPressed = false;   // Will be updated via serial comms from master
 
 /*
 Define our pretty tiny scheduler objects / tasks
 */
 ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
-ptScheduler ptGetManifoldPressure         = ptScheduler(PT_TIME_100MS);
-ptScheduler ptCalculateDesiredBoostPsi    = ptScheduler(PT_TIME_100MS);
+ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
+ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
 
 /*
 Perform setup actions
 */
 void setup() {
-  SERIAL_PORT_MONITOR.begin(115200);    // Hardware serial port for debugging
-  while (!Serial) { };                  // Wait for serial port to open for debug
-  SERIAL_PORT_HARDWARE1.begin(500000);  // Hardware serial port for comms to 'master'
+  SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
+  while (!Serial) {
+  };                                   // Wait for serial port to open for debug
+  SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
 
   // Calibrate travel limits of boost valve
   setBoostValveTravelLimits(&boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum);
@@ -69,7 +70,6 @@ void loop() {
     currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleGear, currentVehicleSpeed, currentVehicleRpm, clutchPressed);
     SERIAL_PORT_MONITOR.println(currentDesiredBoostPsi);
   }
-  
 }
 
 /*
