@@ -5,7 +5,6 @@
 Define pin constants
 */
 const byte inputPotentiometerSignalPin = A15;
-const byte inputPotentiometerSignalPin = A15;
 
 /*
 Define function - Get motor potentiometer voltage reading

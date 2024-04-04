@@ -20,6 +20,11 @@ float inputPotentiometerVoltage;
 float motorPotentiometerVoltage;
 int desiredManifoldPressure = 5;  // Boost level in PSI
 
+int boostValvePositionReadingMinimum; // Throttle blade closed, hold all of the
+                                      // boost
+int boostValvePositionReadingMaximum; // Throttle blade open, release all of the
+                                      // boost
+
 /*
 Define our pretty tiny scheduler objects / tasks
 */
@@ -35,7 +40,8 @@ void setup() {
   SERIAL_PORT_HARDWARE1.begin(500000);  // Hardware serial port for comms to 'master'
 
   // Calibrate travel limits of boost valve
-  setBoostValveTravelLimits();
+  setBoostValveTravelLimits(&boostValvePositionReadingMinimum,
+                            &boostValvePositionReadingMaximum);
 
   // Perform checks of travel limits which were determined and don't hold any boost if out of range
 }
@@ -46,7 +52,8 @@ Main execution loop
 void loop() {
   if (ptGetBoostValvePosition.call()) {
     SERIAL_PORT_MONITOR.print("Open percentage is: ");
-    SERIAL_PORT_MONITOR.println(getBoostValveOpenPercentage());
+    SERIAL_PORT_MONITOR.println(
+        getBoostValveOpenPercentage(motorPotentiometerSignalPin, &boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum));
   }
 
   // Get and set current manifold pressure
