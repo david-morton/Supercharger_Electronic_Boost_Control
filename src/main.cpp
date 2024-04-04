@@ -5,31 +5,36 @@
 #include "boostValveControl.h"
 #include "boostValveSetup.h"
 #include "sensorsSendReceive.h"
+#include "calculateDesiredBoost.h"
 
 /*
 Define pin constants
 */
-const byte motorPotentiometerSignalPin = A14;
+const byte boostValvePositionSignalPin     = A14;
+const byte manifoldPressureSensorSignalPin = A15;
 
 /*
 Define variables
 */
-float currentBoostValvePosition;
-float boostValvePositionTarget;
-float inputPotentiometerVoltage;
-float motorPotentiometerVoltage;
-int desiredManifoldPressure = 5;  // Boost level in PSI
+float currentBoostValveOpenPercentage;
+float currentManifoldPressureRaw;
 
-int boostValvePositionReadingMinimum; // Throttle blade closed, hold all of the
-                                      // boost
-int boostValvePositionReadingMaximum; // Throttle blade open, release all of the
-                                      // boost
+int boostValvePositionReadingMinimum; // Throttle blade closed, hold all of the boost
+int boostValvePositionReadingMaximum; // Throttle blade open, release all of the boost
+
+float currentDesiredBoostPsi = 0;
+
+int currentVehicleGear  = 29;          // Will be updated via serial comms from master
+int currentVehicleSpeed = 54;          // Will be updated via serial comms from master
+int currentVehicleRpm   = 6555;          // Will be updated via serial comms from master
+bool clutchPressed      = false;       // Will be updated via serial comms from master
 
 /*
 Define our pretty tiny scheduler objects / tasks
 */
-ptScheduler ptGetBoostValvePosition     = ptScheduler(PT_TIME_1S);
-ptScheduler ptReadManifoldBoostPressure = ptScheduler(PT_TIME_50MS);
+ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
+ptScheduler ptGetManifoldPressure         = ptScheduler(PT_TIME_100MS);
+ptScheduler ptCalculateDesiredBoostPsi    = ptScheduler(PT_TIME_100MS);
 
 /*
 Perform setup actions
@@ -40,8 +45,7 @@ void setup() {
   SERIAL_PORT_HARDWARE1.begin(500000);  // Hardware serial port for comms to 'master'
 
   // Calibrate travel limits of boost valve
-  setBoostValveTravelLimits(&boostValvePositionReadingMinimum,
-                            &boostValvePositionReadingMaximum);
+  setBoostValveTravelLimits(&boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum);
 
   // Perform checks of travel limits which were determined and don't hold any boost if out of range
 }
@@ -50,22 +54,28 @@ void setup() {
 Main execution loop
 */
 void loop() {
-  if (ptGetBoostValvePosition.call()) {
-    SERIAL_PORT_MONITOR.print("Open percentage is: ");
-    SERIAL_PORT_MONITOR.println(
-        getBoostValveOpenPercentage(motorPotentiometerSignalPin, &boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum));
+  // Get the current blade position open percentage
+  if (ptGetBoostValveOpenPercentage.call()) {
+    currentBoostValveOpenPercentage = getBoostValveOpenPercentage(boostValvePositionSignalPin, &boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum);
   }
 
-  // Get and set current manifold pressure
+  // Get the current manifold pressure (raw sensor reading)
+  if (ptGetManifoldPressure.call()) {
+    currentManifoldPressureRaw = getManifoldPressure(manifoldPressureSensorSignalPin);
+  }
 
-  // Drive towards target manifold / boost pressure
+  // Calculate the desired boost we should be running
+  if (ptCalculateDesiredBoostPsi.call()) {
+    currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleGear, currentVehicleSpeed, currentVehicleRpm, clutchPressed);
+    SERIAL_PORT_MONITOR.println(currentDesiredBoostPsi);
+  }
   
 }
 
 /*
 TODO:
-- Create a new file for dealing with IO
-  - Getting of pressure readings in a high frequency way. Updates the array used for determining the 'real' value
-  - Maybe the above can hand back the rolling average value ... or we want to do this on it's own less frequent schedule ?
 - Create a new file for setting of the requested boost. For now is this just a fixed value ?
+- Implement periodic check for error conditions, set a flag which can be passed back to main controller and alarm sounded
+  - Also on no master comms for a specified period, open the valve
+- Build in robust fail safes in case we get corrupt data on the serial comms from master
 */

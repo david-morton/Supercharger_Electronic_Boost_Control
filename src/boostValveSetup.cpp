@@ -21,8 +21,7 @@ bool boostValveOpenPositionSet = false;
 /*
 Define function - Set travel limits of boost valve
 */
-void setBoostValveTravelLimits(int* positionReadingMinimum,
-                              int* positionReadingMaximum) {
+void setBoostValveTravelLimits(int* positionReadingMinimum, int* positionReadingMaximum) {
   ptScheduler ptIncrementValvePosition = ptScheduler(PT_TIME_50MS);
   const int windowSize = 5; // Number of samples to consider for moving average
   int readingsClosed[windowSize]; // Create arrays for moving average samples

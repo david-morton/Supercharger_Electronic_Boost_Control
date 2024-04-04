@@ -2,16 +2,25 @@
 #include <PID_v1.h>
 
 /*
-Define pin constants
+Define variables
 */
-const byte inputPotentiometerSignalPin = A15;
+int pressureSensorReading;
 
 /*
 Define function - Get motor potentiometer voltage reading
 */
-// void getMotorPotentiometerVoltage() {
-//   // Voltage range seems to be from 3.25V to 1.70V
-//   motorPotentiometerVoltage = analogRead(motorPotentiometerSignalPin) * (5.0 / 1023.0);
-//   SERIAL_PORT_MONITOR.print("Motor potentiometer voltage is: ");
-//   SERIAL_PORT_MONITOR.println(motorPotentiometerVoltage);
-// }
+float getManifoldPressure(const byte signalPin) {
+  const int numReadings = 20; // Number of readings to average
+  int totalReadings = 0;
+
+  // Take multiple readings and sum them up
+  for (int i = 0; i < numReadings; i++) {
+    // Read sensor position from analog pin
+    pressureSensorReading = analogRead(signalPin);
+    totalReadings += pressureSensorReading;
+  }
+
+  // Calculate average of the readings
+  float averageReading = totalReadings / static_cast<float>(numReadings); // Prevent returning int result
+  return averageReading;
+}

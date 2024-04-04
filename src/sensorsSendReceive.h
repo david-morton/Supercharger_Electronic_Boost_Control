@@ -6,5 +6,6 @@
 /*
 Define function prototypes
 */
+float getManifoldPressure(const byte);
 
 #endif

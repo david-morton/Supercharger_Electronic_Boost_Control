@@ -5,13 +5,12 @@
 Define variables
 */
 float boostValveOpenPercentage;
-
 int boostValvePositionReading;
 
 /*
 Define function - Determine current boost valve position percentage
 */
-float getBoostValveOpenPercentage(byte signalPin, int* positionReadingMinimum, int* positionReadingMaximum) {
+float getBoostValveOpenPercentage(const byte signalPin, int* positionReadingMinimum, int* positionReadingMaximum) {
   const int numReadings = 20; // Number of readings to average
   int totalReadings = 0;
 
