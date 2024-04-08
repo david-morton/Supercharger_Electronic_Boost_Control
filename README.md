@@ -12,18 +12,18 @@ The hardware used for my particular appliation is:
 # Serial Protocol
 This section defines how the serial comms between master and slave work; and defines the message types and structures.
 
-## Message Structures
+### Message Structures
 - Message boundaries are indicated by < and > symbols for start and end respectively
 - We cater for multiple fields by being comma delimited
 - A basic XOR checksum is used so we can discard (most) corrupt messages
 
-## Message Types
+### Message Types
 Currently we only have a few message types supported (described from master perspective)
 - Push current readings for speed, RPM, gear and clutch pedal status
 - Request current readings for boost pressure and valve open percentage
 - Request error status
 
-## Example Messages
+### Example Messages
 The standard message format is as below. The number and type of the data fields is unique to each commandId.
 <commandId,data1,data2,data3,...,checksum>
 
