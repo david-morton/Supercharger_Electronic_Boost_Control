@@ -24,10 +24,10 @@ int boostValvePositionReadingMaximum; // Throttle blade open, release all of the
 
 float currentDesiredBoostPsi = 0;
 
-int currentVehicleGear = 29;  // Will be updated via serial comms from master
-int currentVehicleSpeed = 54; // Will be updated via serial comms from master
-int currentVehicleRpm = 6555; // Will be updated via serial comms from master
-bool clutchPressed = false;   // Will be updated via serial comms from master
+int currentVehicleGear = 0;  // Will be updated via serial comms from master
+int currentVehicleSpeed = 0; // Will be updated via serial comms from master
+int currentVehicleRpm = 0;   // Will be updated via serial comms from master
+bool clutchPressed = true;   // Will be updated via serial comms from master
 
 /*
 Define our pretty tiny scheduler objects / tasks
@@ -35,6 +35,7 @@ Define our pretty tiny scheduler objects / tasks
 ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
 ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
+ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_100MS);
 
 /*
 Perform setup actions
@@ -42,13 +43,14 @@ Perform setup actions
 void setup() {
   SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
-  };                                   // Wait for serial port to open for debug
-  SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
+  }; // Wait for serial port to open for debug
+  SERIAL_PORT_HARDWARE1.begin(9600); // Hardware serial port for comms to 'master'
 
   // Calibrate travel limits of boost valve
   setBoostValveTravelLimits(&boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum);
 
-  // Perform checks of travel limits which were determined and don't hold any boost if out of range
+  // TODO: Perform checks of travel limits which were determined and don't hold any boost if out of range
+  // ie: There is not enough voltage separation between them. Write to some error buffer to output ?
 }
 
 /*
@@ -60,7 +62,7 @@ void loop() {
     currentBoostValveOpenPercentage = getBoostValveOpenPercentage(boostValvePositionSignalPin, &boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum);
   }
 
-  // Get the current manifold pressure (raw sensor reading)
+  // Get the current manifold pressure (raw sensor reading 0-1023)
   if (ptGetManifoldPressure.call()) {
     currentManifoldPressureRaw = getManifoldPressure(manifoldPressureSensorSignalPin);
   }
@@ -68,7 +70,6 @@ void loop() {
   // Calculate the desired boost we should be running
   if (ptCalculateDesiredBoostPsi.call()) {
     currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleGear, currentVehicleSpeed, currentVehicleRpm, clutchPressed);
-    SERIAL_PORT_MONITOR.println(currentDesiredBoostPsi);
   }
 }
 

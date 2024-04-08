@@ -1,5 +1,4 @@
 #include "boostValveControl.h"
-#include "CytronMotorDriver.h" // Library for the Cytron MDD10 motor driver
 
 /*
 Define variables
