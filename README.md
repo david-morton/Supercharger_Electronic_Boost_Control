@@ -14,7 +14,7 @@ This section defines how the serial comms between master and slave work; and def
 
 ## Message Structures
 - Message boundaries are indicated by < and > symbols for start and end respectively
-- We cater for multi-byte data by indicating field length
+- We cater for multiple fields by being comma delimited
 - A basic XOR checksum is used so we can discard (most) corrupt messages
 
 ## Message Types
@@ -24,7 +24,15 @@ Currently we only have a few message types supported (described from master pers
 - Request error status
 
 ## Example Messages
-<CommandID, Length1, Data1, Length2, Data2, ..., Checksum>
+The standard message format is as below. The number and type of the data fields is unique to each commandId.
+<commandId,data1,data2,data3,...,checksum>
+
+Command ID's in use are as below. The master is the 'main' car module which drives the dashboard via CAN and the slave is the boost controller who's code is in this repo.
+| Command ID  | Direction       | Data Fields                                                     | Description                                       |
+| ----------- | --------------- | --------------------------------------------------------------- | ------------------------------------------------- |
+| 0           | Master to slave | -                                                               | Request current data from boost controller        |
+| 1           | Master to slave | currentRpm,currentSpeed,currentGear,clutchPressed               | Push current data from master to boost controller |
+| 2           | Slave to master | errorStatus,currentBoost,currentTemp,currentValveOpenPercentage | Response to command ID 0                          |
 
 # Technical Notes
 - Words here later
