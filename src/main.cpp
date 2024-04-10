@@ -6,6 +6,7 @@
 #include "boostValveSetup.h"
 #include "calculateDesiredBoost.h"
 #include "sensorsSendReceive.h"
+#include "serialCommunications.h"
 
 /*
 Define pin constants
@@ -36,6 +37,8 @@ ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
 ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
 ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_100MS);
+ptScheduler ptSerialCheckForMessage = ptScheduler(PT_TIME_10MS);
+ptScheduler ptSerialReportDebugStats = ptScheduler(PT_TIME_9S);
 
 /*
 Perform setup actions
@@ -44,7 +47,7 @@ void setup() {
   SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
   }; // Wait for serial port to open for debug
-  SERIAL_PORT_HARDWARE1.begin(9600); // Hardware serial port for comms to 'master'
+  SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
 
   // Calibrate travel limits of boost valve
   setBoostValveTravelLimits(&boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum);
@@ -70,6 +73,16 @@ void loop() {
   // Calculate the desired boost we should be running
   if (ptCalculateDesiredBoostPsi.call()) {
     currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleGear, currentVehicleSpeed, currentVehicleRpm, clutchPressed);
+  }
+
+  // Check to see if we have any serial messages waiting
+  if (ptSerialCheckForMessage.call()) {
+    serialCheckForMessage();
+  }
+
+  // Output serial debug stats
+  if (ptSerialReportDebugStats.call()) {
+    serialReportDebugStats();
   }
 }
 
