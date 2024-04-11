@@ -6,6 +6,6 @@
 /*
 Define function prototypes
 */
-void setBoostValveTravelLimits(int*, int*);
+void setBoostValveTravelLimits(int *, int *);
 
 #endif

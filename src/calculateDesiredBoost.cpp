@@ -29,7 +29,7 @@ const BoostByGear boostByGearData[] = {
 Define function - Calculate desired boost level
 */
 
-float calculateDesiredBoostPsi(int gear, int speed, int rpm, bool clutchPressed) {
+float calculateDesiredBoostPsi(float speed, int rpm, int gear, bool clutchPressed) {
   if (speed <= 2 || gear == 0 || clutchPressed == true || rpm < 1000) {
     return 0.0;
   } else {

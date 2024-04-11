@@ -6,6 +6,6 @@
 /*
 Define function prototypes
 */
-float getBoostValveOpenPercentage(const byte, int*, int*);
+float getBoostValveOpenPercentage(const byte, int *, int *);
 
 #endif

@@ -6,6 +6,6 @@
 /*
 Define function prototypes
 */
-float calculateDesiredBoostPsi(int, int, int, bool);
+float calculateDesiredBoostPsi(float, int, int, bool);
 
 #endif

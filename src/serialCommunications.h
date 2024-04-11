@@ -6,7 +6,7 @@
 /*
 Define function prototypes
 */
-void serialCheckForMessage();
-void serialReportDebugStats();
+const char *serialGetIncomingMessage();
+void serialReportPerformanceStats();
 
 #endif

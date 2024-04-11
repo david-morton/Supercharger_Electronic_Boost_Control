@@ -1,10 +1,12 @@
 #include "serialCommunications.h"
+#include "debugUtils.h"
 
 /*
 Define variables
 */
+const int maxMessageSize = 120; // Maximum size of the message
 bool partialMessagePresent = false;
-char partialMessage[60] = {'\0'};
+char partialMessage[maxMessageSize] = {'\0'};
 
 int messagesReceived = 0;
 int partialMessagesReceived = 0;
@@ -14,7 +16,7 @@ int corruptMessages = 0;
 /*
 Function - Output serial debug stats
 */
-void serialReportDebugStats() {
+void serialReportPerformanceStats() {
   SERIAL_PORT_MONITOR.print("\nTotal messages received: ");
   SERIAL_PORT_MONITOR.println(messagesReceived);
   SERIAL_PORT_MONITOR.print("Partial messages received: ");
@@ -27,12 +29,22 @@ void serialReportDebugStats() {
 }
 
 /*
-Function - Check for new serial messages
+Function - Calculate checksum
 */
-void serialCheckForMessage() {
-  const int maxMessageSize = 60;         // Maximum size of the message
-  char message[maxMessageSize] = {'\0'}; // Array to store the message
-  int messageSize = 0;                   // Current size of the message
+
+/*
+Function - Parse received message
+*/
+// Case statement based on command ID
+//   Set various variables
+
+/*
+Function - Read new serial message
+*/
+const char *serialGetIncomingMessage() {
+  static char message[maxMessageSize] = {'\0'}; // Array to store the message
+  static char returnMessage[10] = {'\0'};       // A simply array to hold our return strings
+  int messageSize = 0;                          // Current size of the message
   bool validMessage = false;
 
   // Throw away any characters until we get a message start or there is no more data, but only if we are not apending to a previous partial message
@@ -43,20 +55,37 @@ void serialCheckForMessage() {
   } else if (partialMessagePresent == true) { // If we are appending to a previous partial message, load it in before we start reading new characters
     strcpy(message, partialMessage);
     messageSize = strlen(message);
-    SERIAL_PORT_MONITOR.println("Retrieving partial message");
+    DEBUG_PRINT("Retrieving partial message: " + String(partialMessage));
+    DEBUG_PRINT("Main message now contains: " + String(message));
   }
 
-  // Read characters from Serial until '>' is received
+  // Read characters from Serial until end marker '>' is received
   while (SERIAL_PORT_HARDWARE1.available() > 0) {
     char incomingChar = SERIAL_PORT_HARDWARE1.read();
 
-    // Add the character to the message
-    message[messageSize++] = incomingChar;
+    if (partialMessagePresent == true) {
+      DEBUG_PRINT("Read in character: " + String(incomingChar));
+    }
+
+    // Add the character to the message and guard against buffer overflow
+    if (messageSize < maxMessageSize - 1) { // Ensure there is space for the null terminator
+      message[messageSize++] = incomingChar;
+      message[messageSize] = '\0'; // Null terminate after adding each character
+    } else {
+      // Handle buffer full condition, optionally print an error message
+      DEBUG_PRINT("Buffer full, message truncated");
+      break; // Exit the loop to avoid further processing
+    }
 
     if (incomingChar == '>') { // End of message, break out and anything received before next function execution will be discarded
       partialMessagePresent = false;
       messagesReceived++;
-      message[messageSize] = '\0';
+
+      if (messageSize < maxMessageSize) {
+        message[messageSize] = '\0';
+      } else {
+        message[maxMessageSize - 1] = '\0'; // Ensure null termination
+      }
 
       // Check if the message is valid
       int countOpenBracket = 0;
@@ -80,26 +109,30 @@ void serialCheckForMessage() {
         validMessage = true;
       } else {
         corruptMessages++;
-        Serial.print("BAD message: ");
-        Serial.println(message);
+        validMessage = false;
+        DEBUG_PRINT("CORRUPT message: " + String(message));
+        strcpy(returnMessage, "corrupt");
+        partialMessagePresent = false; // Clear partial message after processing
+        partialMessage[0] = '\0';
+        return returnMessage;
       }
 
-      // Print the final message
+      // Process the valid message
       if (validMessage) {
-        SERIAL_PORT_MONITOR.print("GOOD message: ");
-        SERIAL_PORT_MONITOR.println(message);
-        SERIAL_PORT_MONITOR.println();
+        DEBUG_PRINT("GOOD message: " + String(message));
+        return message;
       }
-      break;
-    } else if (SERIAL_PORT_HARDWARE1.available() == 0) { // There is no more content in the buffer, and end of message not received
-      // Store message content for appending to later
+    } else if (SERIAL_PORT_HARDWARE1.available() == 0) { // There is no more content in the buffer, and end of message not received. Store message content for appending to later
       partialMessagePresent = true;
       partialMessagesReceived++;
       strcpy(partialMessage, message);
-      SERIAL_PORT_MONITOR.print("Storing partial message: ");
-      SERIAL_PORT_MONITOR.println(message);
+      DEBUG_PRINT("Storing partial message: " + String(message) + " and last character is " + String(incomingChar));
+      strcpy(returnMessage, "partial"); // We have stored a partially received message and will pick it up next function call
+      return returnMessage;
     }
   }
+  strcpy(returnMessage, "empty"); // The buffer was empty and we must return from the function call
+  return returnMessage;
 }
 
 // TODO:
@@ -107,7 +140,5 @@ void serialCheckForMessage() {
 //   If checksum is good, extract all fields and hand back to main from function
 //   This should cater for various command ID's
 // Create function for checksum calculation
-// Take care of case where we overwhelm the receiver with the likes of:
-//   Received message: <1,344,344.00,4,<1,353,353.00,4,1,26>
 //
 // Look at better checksum as value is the same for multiple values

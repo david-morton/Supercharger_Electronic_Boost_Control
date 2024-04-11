@@ -5,8 +5,14 @@
 #include "boostValveControl.h"
 #include "boostValveSetup.h"
 #include "calculateDesiredBoost.h"
+#include "debugUtils.h"
 #include "sensorsSendReceive.h"
 #include "serialCommunications.h"
+
+/*
+Set global debugging on or off
+*/
+bool debugMode = false;
 
 /*
 Define pin constants
@@ -25,10 +31,10 @@ int boostValvePositionReadingMaximum; // Throttle blade open, release all of the
 
 float currentDesiredBoostPsi = 0;
 
-int currentVehicleGear = 0;  // Will be updated via serial comms from master
-int currentVehicleSpeed = 0; // Will be updated via serial comms from master
-int currentVehicleRpm = 0;   // Will be updated via serial comms from master
-bool clutchPressed = true;   // Will be updated via serial comms from master
+int currentVehicleGear = 0;    // Will be updated via serial comms from master
+float currentVehicleSpeed = 0; // Will be updated via serial comms from master
+int currentVehicleRpm = 0;     // Will be updated via serial comms from master
+bool clutchPressed = true;     // Will be updated via serial comms from master
 
 /*
 Define our pretty tiny scheduler objects / tasks
@@ -37,7 +43,7 @@ ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
 ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
 ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_100MS);
-ptScheduler ptSerialCheckForMessage = ptScheduler(PT_TIME_10MS);
+ptScheduler ptSerialReadMessage = ptScheduler(PT_TIME_50MS);
 ptScheduler ptSerialReportDebugStats = ptScheduler(PT_TIME_9S);
 
 /*
@@ -72,17 +78,20 @@ void loop() {
 
   // Calculate the desired boost we should be running
   if (ptCalculateDesiredBoostPsi.call()) {
-    currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleGear, currentVehicleSpeed, currentVehicleRpm, clutchPressed);
+    currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
   }
 
   // Check to see if we have any serial messages waiting
-  if (ptSerialCheckForMessage.call()) {
-    serialCheckForMessage();
+  if (ptSerialReadMessage.call()) {
+    const char *serialMessage = serialGetIncomingMessage();
+    if (strcmp(serialMessage, "empty") != 0) {
+      SERIAL_PORT_MONITOR.println(serialMessage);
+    }
   }
 
   // Output serial debug stats
   if (ptSerialReportDebugStats.call()) {
-    serialReportDebugStats();
+    serialReportPerformanceStats();
   }
 }
 
@@ -92,4 +101,7 @@ TODO:
 - Implement periodic check for error conditions, set a flag which can be passed back to main controller and alarm sounded
   - Also on no master comms for a specified period, open the valve
 - Build in robust fail safes in case we get corrupt data on the serial comms from master
+- On device boot, if the engine is running (detected without comms from master ideally), fail to wide open valve ... do not even perform calibration etc.
+  This is in case watchdog fires and we reboot the boost controller.
+- Safe guard checks should look at comms reliability also, if it's no good fail safe
 */
