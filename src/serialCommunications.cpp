@@ -1,9 +1,9 @@
 #include "serialCommunications.h"
 #include "debugUtils.h"
 
-/*
-Define variables
-*/
+/* ======================================================================
+   VARIABLES
+   ====================================================================== */
 const int maxMessageSize = 120; // Maximum size of the message
 bool partialMessagePresent = false;
 char partialMessage[maxMessageSize] = {'\0'};
@@ -13,9 +13,9 @@ int partialMessagesReceived = 0;
 int messagesWithBadChecksum = 0;
 int corruptMessages = 0;
 
-/*
-Function - Output serial debug stats
-*/
+/* ======================================================================
+   FUNCTION: Output serial debug stats
+   ====================================================================== */
 void serialReportPerformanceStats() {
   SERIAL_PORT_MONITOR.print("\nTotal messages received: ");
   SERIAL_PORT_MONITOR.println(messagesReceived);
@@ -28,9 +28,9 @@ void serialReportPerformanceStats() {
   SERIAL_PORT_MONITOR.println();
 }
 
-/*
-Function - Check if checksum is valid
-*/
+/* ======================================================================
+   FUNCTION: Check if checksum is valid
+   ====================================================================== */
 bool serialIsChecksumValid(const char *message) {
   int len = strlen(message);
 
@@ -55,7 +55,6 @@ bool serialIsChecksumValid(const char *message) {
   // XOR calculation excluding the checksum field itself
   for (int i = 1; i < lastCommaIndex; i++) {
     if (i != checksumStart - 1) {
-      //   calculatedChecksum ^= static_cast<unsigned char>(message[i]);
       calculatedChecksum ^= static_cast<unsigned char>(message[i]);
     }
   }
@@ -72,22 +71,59 @@ bool serialIsChecksumValid(const char *message) {
   }
 }
 
-/*
-Function - Parse received message and take action based on command ID
-*/
+/* ======================================================================
+   FUNCTION: Check if message format is valid
+   ====================================================================== */
+bool isMessageValid(const char *message) {
+  int messageSize = strlen(message);
+  int countOpenBracket = 0;
+  int countCloseBracket = 0;
+
+  // Count the occurrences of '<' and '>'
+  for (int i = 0; i < messageSize; i++) {
+    if (message[i] == '<') {
+      countOpenBracket++;
+    } else if (message[i] == '>') {
+      countCloseBracket++;
+    }
+  }
+
+  // Validate the message format (native style)
+  bool validStart = (message[0] == '<');
+  bool validEnd = (message[messageSize - 1] == '>');
+  bool validCounts = (countOpenBracket == 1) && (countCloseBracket == 1);
+  bool validComma = false;
+
+  // Check for at least one comma
+  for (int i = 0; i < messageSize; i++) {
+    if (message[i] == ',') {
+      validComma = true;
+      break;
+    }
+  }
+
+  if (validStart && validEnd && validCounts && validComma) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+/* ======================================================================
+   FUNCTION: Parse received message and take action based on command ID
+   ====================================================================== */
 void serialProcessMessage(const char *message, float *speed, int *rpm, int *gear, bool *clutchPressed) {
 }
 
-/*
-Function - Read new serial message
-*/
+/* ======================================================================
+   FUNCTION: Read new serial message
+   ====================================================================== */
 const char *serialGetIncomingMessage() {
   static char message[maxMessageSize] = {'\0'}; // Array to store the message
   static char returnMessage[15] = {'\0'};       // A simply array to hold our return strings
   int messageSize = 0;                          // Current size of the message
-  bool validMessage = false;
 
-  // Throw away any characters until we get a message start or there is no more data, but only if we are not apending to a previous partial message
+  // Throw away any characters until we get a message start or there is no more data, but only if we are not appending to a previous partial message
   if (partialMessagePresent == false) {
     while (SERIAL_PORT_HARDWARE1.peek() != '<' && SERIAL_PORT_HARDWARE1.available() > 0) {
       SERIAL_PORT_HARDWARE1.read();
@@ -128,48 +164,10 @@ const char *serialGetIncomingMessage() {
       }
 
       // Check if the message is valid
-      int countOpenBracket = 0;
-      int countCloseBracket = 0;
-
-      // Count the occurrences of '<' and '>'
-      for (int i = 0; i < messageSize; i++) {
-        if (message[i] == '<') {
-          countOpenBracket++;
-        } else if (message[i] == '>') {
-          countCloseBracket++;
-        }
-      }
-
-      // Validate the message format (native style)
-      bool validStart = (message[0] == '<');
-      bool validEnd = (message[messageSize - 1] == '>');
-      bool validCounts = (countOpenBracket == 1) && (countCloseBracket == 1);
-      bool validComma = false;
-
-      // Check for at least one comma
-      for (int i = 0; i < messageSize; i++) {
-        if (message[i] == ',') {
-          validComma = true;
-          break;
-        }
-      }
-
-      if (validStart && validEnd && validCounts && validComma) {
-        validMessage = true;
-      } else {
-        corruptMessages++;
-        validMessage = false;
-        DEBUG_PRINT("CORRUPT message: " + String(message));
-        strcpy(returnMessage, "corrupt");
-        partialMessagePresent = false; // Clear partial message after processing
-        partialMessage[0] = '\0';
-        return returnMessage;
-      }
-
-      // Process the valid message
-      if (validMessage) {
+      if (isMessageValid(message)) {
         // Ensure the checksum is valid, discard if it is not
         if (serialIsChecksumValid(message)) {
+          // Process the valid message
           DEBUG_PRINT("GOOD message ready to process: " + String(message));
           return message;
         } else {
@@ -177,6 +175,13 @@ const char *serialGetIncomingMessage() {
           strcpy(returnMessage, "badChecksum");
           return returnMessage;
         }
+      } else {
+        corruptMessages++;
+        DEBUG_PRINT("CORRUPT message: " + String(message));
+        strcpy(returnMessage, "corrupt");
+        partialMessagePresent = false; // Clear partial message after processing
+        partialMessage[0] = '\0';
+        return returnMessage;
       }
     } else if (SERIAL_PORT_HARDWARE1.available() == 0) { // There is no more content in the buffer, and end of message not received. Store message content for appending to later
       partialMessagePresent = true;

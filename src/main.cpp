@@ -43,7 +43,7 @@ ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
 ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
 ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_100MS);
-ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_20MS);
+ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_10MS);
 ptScheduler ptSerialReportDebugStats = ptScheduler(PT_TIME_9S);
 
 /*
