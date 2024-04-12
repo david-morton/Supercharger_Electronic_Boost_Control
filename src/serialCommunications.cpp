@@ -33,8 +33,9 @@ Function - Check if checksum is valid
 */
 bool serialIsChecksumValid(const char *message) {
   int len = strlen(message);
-  int lastCommaIndex = -1;
 
+  // Find the last comma
+  int lastCommaIndex = -1;
   for (int i = len - 1; i >= 0; i--) {
     if (message[i] == ',') {
       lastCommaIndex = i;
@@ -42,27 +43,39 @@ bool serialIsChecksumValid(const char *message) {
     }
   }
 
-  if (lastCommaIndex == -1 || len - lastCommaIndex - 1 > 3) {
-    return false;
-  }
+  // Extract the checksum
+  int checksumStart = lastCommaIndex + 1;
+  int checksumLength = len - checksumStart - 1; // Length of checksum (excluding '>')
 
-  char receivedChecksum[4];
-  strncpy(receivedChecksum, &message[lastCommaIndex + 1], 3);
-  receivedChecksum[3] = '\0';
+  char receivedChecksum[5]; // Maximum length + 1 for null terminator
+  strncpy(receivedChecksum, &message[checksumStart], checksumLength);
+  receivedChecksum[checksumLength] = '\0'; // Null-terminate the checksum
 
   char calculatedChecksum = 0;
+  // XOR calculation excluding the checksum field itself
   for (int i = 1; i < lastCommaIndex; i++) {
-    calculatedChecksum ^= message[i];
+    if (i != checksumStart - 1) {
+      //   calculatedChecksum ^= static_cast<unsigned char>(message[i]);
+      calculatedChecksum ^= static_cast<unsigned char>(message[i]);
+    }
   }
 
-  return atoi(receivedChecksum) == calculatedChecksum;
+  // Display the correct calculated checksum in debug
+  String calculatedChecksumString = String(static_cast<unsigned char>(calculatedChecksum));
+
+  // If received checksum matches calculated checksum, return true, else return false
+  if (atoi(receivedChecksum) == calculatedChecksum) {
+    return true;
+  } else {
+    DEBUG_PRINT("BAD Checksum calculation. Received: " + String(receivedChecksum) + ", Calculated: " + calculatedChecksumString);
+    return false;
+  }
 }
 
 /*
 Function - Parse received message and take action based on command ID
 */
 void serialProcessMessage(const char *message, float *speed, int *rpm, int *gear, bool *clutchPressed) {
-
 }
 
 /*
@@ -127,12 +140,21 @@ const char *serialGetIncomingMessage() {
         }
       }
 
-      // Validate the message format
+      // Validate the message format (native style)
       bool validStart = (message[0] == '<');
       bool validEnd = (message[messageSize - 1] == '>');
       bool validCounts = (countOpenBracket == 1) && (countCloseBracket == 1);
+      bool validComma = false;
 
-      if (validStart && validEnd && validCounts) {
+      // Check for at least one comma
+      for (int i = 0; i < messageSize; i++) {
+        if (message[i] == ',') {
+          validComma = true;
+          break;
+        }
+      }
+
+      if (validStart && validEnd && validCounts && validComma) {
         validMessage = true;
       } else {
         corruptMessages++;
@@ -146,12 +168,11 @@ const char *serialGetIncomingMessage() {
 
       // Process the valid message
       if (validMessage) {
-        DEBUG_PRINT("VALID message format: " + String(message));
         // Ensure the checksum is valid, discard if it is not
         if (serialIsChecksumValid(message)) {
+          DEBUG_PRINT("GOOD message ready to process: " + String(message));
           return message;
         } else {
-          DEBUG_PRINT("CHECKSUM failure: " + String(message));
           messagesWithBadChecksum++;
           strcpy(returnMessage, "badChecksum");
           return returnMessage;

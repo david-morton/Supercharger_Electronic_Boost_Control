@@ -12,7 +12,7 @@
 /*
 Set global debugging on or off
 */
-bool debugMode = false;
+bool debugMode = true;
 
 /*
 Define pin constants
@@ -43,7 +43,7 @@ ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
 ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
 ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_100MS);
-ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_50MS);
+ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_20MS);
 ptScheduler ptSerialReportDebugStats = ptScheduler(PT_TIME_9S);
 
 /*
@@ -52,7 +52,7 @@ Perform setup actions
 void setup() {
   SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
-  };                                   // Wait for serial port to open for debug
+  }; // Wait for serial port to open for debug
   SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
 
   // Calibrate travel limits of boost valve
@@ -84,9 +84,9 @@ void loop() {
   // Check to see if we have any serial messages waiting and process if so
   if (ptSerialReadAndProcessMessage.call()) {
     const char *serialMessage = serialGetIncomingMessage();
-    if (strcmp(serialMessage, "empty") != 0) {
-      SERIAL_PORT_MONITOR.println(serialMessage);
-    }
+    // if (strcmp(serialMessage, "empty") != 0) {
+    //   SERIAL_PORT_MONITOR.println(serialMessage);
+    // }
     serialProcessMessage(serialMessage, &currentVehicleSpeed, &currentVehicleRpm, &currentVehicleGear, &clutchPressed);
   }
 
