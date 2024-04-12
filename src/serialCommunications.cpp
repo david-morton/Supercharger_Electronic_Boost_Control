@@ -29,21 +29,48 @@ void serialReportPerformanceStats() {
 }
 
 /*
-Function - Calculate checksum
+Function - Check if checksum is valid
 */
+bool serialIsChecksumValid(const char *message) {
+  int len = strlen(message);
+  int lastCommaIndex = -1;
+
+  for (int i = len - 1; i >= 0; i--) {
+    if (message[i] == ',') {
+      lastCommaIndex = i;
+      break;
+    }
+  }
+
+  if (lastCommaIndex == -1 || len - lastCommaIndex - 1 > 3) {
+    return false;
+  }
+
+  char receivedChecksum[4];
+  strncpy(receivedChecksum, &message[lastCommaIndex + 1], 3);
+  receivedChecksum[3] = '\0';
+
+  char calculatedChecksum = 0;
+  for (int i = 1; i < lastCommaIndex; i++) {
+    calculatedChecksum ^= message[i];
+  }
+
+  return atoi(receivedChecksum) == calculatedChecksum;
+}
 
 /*
-Function - Parse received message
+Function - Parse received message and take action based on command ID
 */
-// Case statement based on command ID
-//   Set various variables
+void serialProcessMessage(const char *message, float *speed, int *rpm, int *gear, bool *clutchPressed) {
+
+}
 
 /*
 Function - Read new serial message
 */
 const char *serialGetIncomingMessage() {
   static char message[maxMessageSize] = {'\0'}; // Array to store the message
-  static char returnMessage[10] = {'\0'};       // A simply array to hold our return strings
+  static char returnMessage[15] = {'\0'};       // A simply array to hold our return strings
   int messageSize = 0;                          // Current size of the message
   bool validMessage = false;
 
@@ -119,8 +146,16 @@ const char *serialGetIncomingMessage() {
 
       // Process the valid message
       if (validMessage) {
-        DEBUG_PRINT("GOOD message: " + String(message));
-        return message;
+        DEBUG_PRINT("VALID message format: " + String(message));
+        // Ensure the checksum is valid, discard if it is not
+        if (serialIsChecksumValid(message)) {
+          return message;
+        } else {
+          DEBUG_PRINT("CHECKSUM failure: " + String(message));
+          messagesWithBadChecksum++;
+          strcpy(returnMessage, "badChecksum");
+          return returnMessage;
+        }
       }
     } else if (SERIAL_PORT_HARDWARE1.available() == 0) { // There is no more content in the buffer, and end of message not received. Store message content for appending to later
       partialMessagePresent = true;

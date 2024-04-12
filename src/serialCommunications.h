@@ -8,5 +8,7 @@ Define function prototypes
 */
 const char *serialGetIncomingMessage();
 void serialReportPerformanceStats();
+bool serialIsChecksumValid();
+void serialProcessMessage(const char *, float *, int *, int *, bool *);
 
 #endif
