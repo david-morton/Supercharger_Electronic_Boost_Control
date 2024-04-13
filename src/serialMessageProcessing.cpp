@@ -4,7 +4,7 @@
 /* ======================================================================
    FUNCTION: Parse received message and take action based on command ID
    ====================================================================== */
-void serialProcessMessage(const char *serialMessage, float *speed, int *rpm, int *gear, bool *clutchPressed) {
+int serialProcessMessage(const char *serialMessage, float *speed, int *rpm, int *gear, bool *clutchPressed) {
   // Determine message type
   int CommandId = -1;
   sscanf(serialMessage, "<%d", &CommandId);
@@ -14,19 +14,18 @@ void serialProcessMessage(const char *serialMessage, float *speed, int *rpm, int
       // Master is requesting our current information to be sent over serial
       DEBUG_PRINT("PROCESSING command ID " + String(CommandId) + " message " + String(serialMessage));
       serialProcessCommandId0(serialMessage);
-      break;
+      return 0;
 
     case 1:
       // Master is pushing us the current state so we can update our local variables and make good decisions
       DEBUG_PRINT("PROCESSING command ID " + String(CommandId) + " message " + String(serialMessage));
       serialProcessCommandId1(serialMessage, speed, rpm, gear, clutchPressed);
-      lastSuccessfulCommandId1Processed = millis();
-      break;
+      return 1;
 
     default:
       // Unknown message type
       DEBUG_PRINT("Command ID " + String(CommandId) + " not supported, unable to process " + String(serialMessage));
-      break;
+      return 255;
   }
 }
 

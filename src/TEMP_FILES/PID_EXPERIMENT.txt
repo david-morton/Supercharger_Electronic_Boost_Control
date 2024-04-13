@@ -1,0 +1,93 @@
+// PID EXPERIMENTS
+
+#include <CytronMotorDriver.h>
+#include <PID_v1.h>
+#include <ptScheduler.h>
+
+// Define intake manifold pressure sensor pin
+const byte pressureSensorPin = A15;
+
+// Define throttle body potentiometer pin
+const byte valvePositionSignalPin = A14;
+
+// Define physical limits for the throttle body
+const double VALVE_FULL_OPEN = 3.0;   // Max voltage from potentiometer (fully open)
+const double VALVE_FULL_CLOSED = 1.5; // Min voltage from potentiometer (fully closed)
+
+// Define set point for boost pressure (5psi)
+double DESIRED_BOOST_PSI = 2.5;
+
+// Define PID tuning parameters
+double Kp = 0.5; // Proportional term
+double Ki = 1.0; // Integral term
+double Kd = 0.5; // Derivative term
+
+// Initialize throttle PID variables
+double currentPressure, valveMotorOutput;
+
+PID throttlePID(&currentPressure, &valveMotorOutput, &DESIRED_BOOST_PSI, Kp, Ki, Kd, DIRECT);
+
+// Create motor object for Cytron MDD10
+CytronMD valveMotor(PWM_DIR, 9, 8);
+
+ptScheduler ptCalculatePid = ptScheduler(PT_TIME_100MS);
+
+void taskThrottlePID() {
+  // Read intake manifold pressure sensor
+  currentPressure = analogRead(pressureSensorPin) * (5.0 / 1023.0);
+
+  // Ensure pressure input is within limits
+  if (currentPressure < 0.0) {
+    currentPressure = 0.0;
+  } else if (currentPressure > 5.0) {
+    currentPressure = 5.0;
+  }
+
+  // Read potentiometer position
+  double potentiometerReading = analogRead(valvePositionSignalPin) * (5.0 / 1023.0);
+
+  // Ensure potentiometer reading is within physical limits
+  if (potentiometerReading < VALVE_FULL_CLOSED) {
+    potentiometerReading = VALVE_FULL_CLOSED;
+  } else if (potentiometerReading > VALVE_FULL_OPEN) {
+    potentiometerReading = VALVE_FULL_OPEN;
+  }
+
+  // Compute PID output
+  throttlePID.Compute();
+
+  // Enforce physical limits on the motor output
+  if (valveMotorOutput > 0 && potentiometerReading >= VALVE_FULL_OPEN) {
+    valveMotorOutput = 0;
+  } else if (valveMotorOutput < 0 && potentiometerReading <= VALVE_FULL_CLOSED) {
+    valveMotorOutput = 0;
+  }
+
+  // Drive the motor based on PID output
+  valveMotor.setSpeed((int)-valveMotorOutput);
+
+  // Print debug information
+  Serial.print("Target: ");
+  Serial.print(DESIRED_BOOST_PSI);
+  Serial.print("V, Pressure: ");
+  Serial.print(currentPressure);
+  Serial.print("V, Output: ");
+  Serial.print(valveMotorOutput);
+  Serial.println(" pwm");
+}
+
+void setup() {
+  // Initialize serial communication
+  Serial.begin(115200);
+
+  // Set PID input range based on throttle potentiometer limits
+  throttlePID.SetOutputLimits(-32, 32); // Allow negative values for both directions
+  throttlePID.SetMode(AUTOMATIC);
+}
+
+void loop() {
+  // Update tasks in the scheduler
+  if (ptCalculatePid.call()) {
+    taskThrottlePID();
+  }
+}

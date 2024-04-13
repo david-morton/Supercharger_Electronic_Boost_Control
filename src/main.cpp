@@ -8,11 +8,13 @@
 #include "globalHelpers.h"
 #include "sensorsSendReceive.h"
 #include "serialCommunications.h"
+#include "serialMessageProcessing.h"
 
 /* ======================================================================
-   VARIABLES: Helper variables defined once and accessible everywhere
+   VARIABLES: Debug and stat output
    ====================================================================== */
 bool debugMode = false;
+bool reportSerialMessageStats = true;
 
 /* ======================================================================
    VARIABLES: Pin constants
@@ -45,7 +47,7 @@ ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
 ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_100MS);
 ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_5MS);
 ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_1S);
-ptScheduler ptSerialReportDebugStats = ptScheduler(PT_TIME_5S);
+ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
 ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
 
 /* ======================================================================
@@ -84,15 +86,26 @@ void loop() {
   }
 
   // Output serial debug stats
-  if (ptSerialReportDebugStats.call()) {
+  if (ptSerialReportMessageQualityStats.call() && reportSerialMessageStats) {
     serialReportMessageQualityStats();
   }
 
-  // Check to see if we have any serial messages waiting and process if so.
+  // Check to see if we have any serial messages waiting and process if so
   if (ptSerialReadAndProcessMessage.call()) {
     const char *serialMessage = serialGetIncomingMessage();
+
+    int commandIdProcessed = -1;
     if (serialMessage[0] == '<') {
-      serialProcessMessage(serialMessage, &currentVehicleSpeed, &currentVehicleRpm, &currentVehicleGear, &clutchPressed);
+      commandIdProcessed = serialProcessMessage(serialMessage, &currentVehicleSpeed, &currentVehicleRpm, &currentVehicleGear, &clutchPressed);
+    }
+
+    if (commandIdProcessed == 0) { // Master has requested latest info from us
+      SERIAL_PORT_MONITOR.println("Successfully processed command ID 0");
+    }
+
+    if (commandIdProcessed == 1) {
+      SERIAL_PORT_MONITOR.println("Successfully processed command ID 1");
+      lastSuccessfulCommandId1Processed = millis();
     }
   }
 
