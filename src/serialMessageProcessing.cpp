@@ -12,8 +12,7 @@ int serialProcessMessage(const char *serialMessage, float *speed, int *rpm, int 
   switch (CommandId) {
     case 0:
       // Master is requesting our current information to be sent over serial
-      DEBUG_PRINT("PROCESSING command ID " + String(CommandId) + " message " + String(serialMessage));
-      serialProcessCommandId0(serialMessage);
+      DEBUG_PRINT("RETURNING command ID " + String(CommandId) + " message " + String(serialMessage));
       return 0;
 
     case 1:
@@ -27,13 +26,6 @@ int serialProcessMessage(const char *serialMessage, float *speed, int *rpm, int 
       DEBUG_PRINT("Command ID " + String(CommandId) + " not supported, unable to process " + String(serialMessage));
       return 255;
   }
-}
-
-/* ======================================================================
-   FUNCTION: Process command ID 0 (request current data of boost controller from master)
-   ====================================================================== */
-void serialProcessCommandId0(const char *serialMessage) {
-  // Print or use the parsed values for demonstration
 }
 
 /* ======================================================================

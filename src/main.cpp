@@ -27,11 +27,11 @@ const byte manifoldPressureSensorSignalPin = A15;
    ====================================================================== */
 float currentBoostValveOpenPercentage;
 float currentManifoldPressureRaw;
+float currentTargetBoostPsi;
+int currentManifoldTempRaw;
 
 int boostValvePositionReadingMinimum; // Throttle blade closed, hold all of the boost
 int boostValvePositionReadingMaximum; // Throttle blade open, release all of the boost
-
-float currentDesiredBoostPsi = 0;
 
 int currentVehicleGear = 0;    // Will be updated via serial comms from master
 float currentVehicleSpeed = 0; // Will be updated via serial comms from master
@@ -93,19 +93,21 @@ void loop() {
   // Check to see if we have any serial messages waiting and process if so
   if (ptSerialReadAndProcessMessage.call()) {
     const char *serialMessage = serialGetIncomingMessage();
-
     int commandIdProcessed = -1;
+
+    // Process the serial message if something was received (detected by start marker <)
     if (serialMessage[0] == '<') {
       commandIdProcessed = serialProcessMessage(serialMessage, &currentVehicleSpeed, &currentVehicleRpm, &currentVehicleGear, &clutchPressed);
     }
 
     if (commandIdProcessed == 0) { // Master has requested latest info from us
-      SERIAL_PORT_MONITOR.println("Successfully processed command ID 0");
+      DEBUG_PRINT("Received request from master for params upadte (command ID 0 message)");
+      serialSendCommandId0Response(globalAlarmCritical, currentTargetBoostPsi, currentManifoldPressureRaw, currentManifoldTempRaw);
     }
 
-    if (commandIdProcessed == 1) {
-      SERIAL_PORT_MONITOR.println("Successfully processed command ID 1");
+    if (commandIdProcessed == 1) { // Updated parameters from master
       lastSuccessfulCommandId1Processed = millis();
+      DEBUG_PRINT("Successfully processed command ID 1 message (update pushed params from master)");
     }
   }
 
@@ -120,12 +122,11 @@ void loop() {
   if (globalAlarmCritical == true) {
     // Stop valve motor immediately and allow spring to open it naturally
     // TODO: Actually stop driving the valve
-    SERIAL_PORT_MONITOR.println("CRITICAL ALARM DETECTED !!!");
   } else {
     // Calculate the desired boost we should be running and update PID valve control to drive to that target
     if (ptCalculateDesiredBoostPsi.call()) {
-      currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
-      DEBUG_PRINT("Setting target boost level to " + String(currentDesiredBoostPsi) + "psi");
+      currentTargetBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
+      DEBUG_PRINT("Setting target boost level to " + String(currentTargetBoostPsi) + "psi");
     }
   }
 }

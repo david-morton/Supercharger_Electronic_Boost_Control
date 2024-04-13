@@ -10,5 +10,6 @@ const char *serialGetIncomingMessage();
 void serialReportMessageQualityStats();
 bool serialIsChecksumValid();
 void serialCalculateMessageQualityStats();
+void serialSendCommandId0Response(bool, float, float, int);
 
 #endif

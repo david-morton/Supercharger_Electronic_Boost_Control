@@ -6,7 +6,6 @@
 /* ======================================================================
    FUNCTION PROTOTYPES
    ====================================================================== */
-void serialProcessCommandId0(const char *);
 void serialProcessCommandId1(const char *, float *, int *, int *, bool *);
 int serialProcessMessage(const char *, float *, int *, int *, bool *);
 

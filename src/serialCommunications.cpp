@@ -219,3 +219,28 @@ const char *serialGetIncomingMessage() {
   strcpy(returnMessage, "empty"); // The buffer was empty and we must return from the function call
   return returnMessage;
 }
+
+/* ======================================================================
+   FUNCTION: Send response to command ID 0 from master (response message is command ID 2)
+   ====================================================================== */
+void serialSendCommandId0Response(bool alarmCritical, float targetBoostPsi, float manifoldPressureRaw, int manifoldTemperatureRaw) {
+  // Calculate human friendly params to send back to master
+  int manifoldPressurePsi = 0;
+  int manifoldTempCelcius = 0;
+  // Create the message without the start and end markers
+  String message = "2," + String(alarmCritical ? "1" : "0") + "," + String(targetBoostPsi) + "," + String(manifoldPressurePsi) + "," + String(manifoldTempCelcius);
+
+  // Calculate XOR checksum
+  byte checksum = 0;
+  for (size_t i = 0; i < message.length(); i++) {
+    checksum ^= message.charAt(i);
+  }
+
+  // Create the final message with start and end markers, and checksum
+  String finalMessage = "<" + message + "," + String(checksum) + ">";
+
+  // Send the message over Serial1
+  Serial1.print(finalMessage);
+  SERIAL_PORT_MONITOR.print("Sending ... ");
+  SERIAL_PORT_MONITOR.println(finalMessage);
+}
