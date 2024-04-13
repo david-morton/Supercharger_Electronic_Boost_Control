@@ -3,9 +3,9 @@
 
 #include <Arduino.h>
 
-/*
-Define function prototypes
-*/
+/* ======================================================================
+   FUNCTION PROTOTYPES
+   ====================================================================== */
 float calculateDesiredBoostPsi(float, int, int, bool);
 
 #endif

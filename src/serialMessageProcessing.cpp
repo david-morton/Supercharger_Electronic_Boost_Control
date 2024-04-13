@@ -1,27 +1,31 @@
 #include "serialMessageProcessing.h"
-#include "debugUtils.h"
+#include "globalHelpers.h"
 
 /* ======================================================================
    FUNCTION: Parse received message and take action based on command ID
    ====================================================================== */
 void serialProcessMessage(const char *serialMessage, float *speed, int *rpm, int *gear, bool *clutchPressed) {
   // Determine message type
-  int messageType = -1;
-  sscanf(serialMessage, "<%d", &messageType);
-  DEBUG_PRINT("Message type detected as " + String(messageType));
+  int CommandId = -1;
+  sscanf(serialMessage, "<%d", &CommandId);
 
-  switch (messageType) {
+  switch (CommandId) {
     case 0:
-      processMessageType0(serialMessage);
+      // Master is requesting our current information to be sent over serial
+      DEBUG_PRINT("PROCESSING command ID " + String(CommandId) + " message " + String(serialMessage));
+      serialProcessCommandId0(serialMessage);
       break;
 
     case 1:
-      processMessageType1(serialMessage, speed, rpm, gear, clutchPressed);
+      // Master is pushing us the current state so we can update our local variables and make good decisions
+      DEBUG_PRINT("PROCESSING command ID " + String(CommandId) + " message " + String(serialMessage));
+      serialProcessCommandId1(serialMessage, speed, rpm, gear, clutchPressed);
+      lastSuccessfulCommandId1Processed = millis();
       break;
 
     default:
       // Unknown message type
-      DEBUG_PRINT("Unknown message type, unable to process");
+      DEBUG_PRINT("Command ID " + String(CommandId) + " not supported, unable to process " + String(serialMessage));
       break;
   }
 }
@@ -29,15 +33,14 @@ void serialProcessMessage(const char *serialMessage, float *speed, int *rpm, int
 /* ======================================================================
    FUNCTION: Process command ID 0 (request current data of boost controller from master)
    ====================================================================== */
-void processMessageType0(const char *serialMessage) {
+void serialProcessCommandId0(const char *serialMessage) {
   // Print or use the parsed values for demonstration
-  DEBUG_PRINT("Got request for message type 0 and message is " + String(serialMessage));
 }
 
 /* ======================================================================
    FUNCTION: Process command ID 1 (update pushed status data from master)
    ====================================================================== */
-void processMessageType1(const char *serialMessage, float *speed, int *rpm, int *gear, bool *clutchPressed) {
+void serialProcessCommandId1(const char *serialMessage, float *speed, int *rpm, int *gear, bool *clutchPressed) {
   // Create tokens from comma delimited message
   char *token = strtok(const_cast<char *>(serialMessage), ",");
   int positionCounter = 0;

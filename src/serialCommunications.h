@@ -3,12 +3,13 @@
 
 #include <Arduino.h>
 
-/*
-Define function prototypes
-*/
+/* ======================================================================
+   FUNCTION PROTOTYPES
+   ====================================================================== */
 const char *serialGetIncomingMessage();
-void serialReportPerformanceStats();
+void serialReportMessageQualityStats();
 bool serialIsChecksumValid();
 void serialProcessMessage(const char *, float *, int *, int *, bool *);
+void serialCalculateMessageQualityStats();
 
 #endif

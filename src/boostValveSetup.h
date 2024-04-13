@@ -3,9 +3,9 @@
 
 #include <Arduino.h>
 
-/*
-Define function prototypes
-*/
+/* ======================================================================
+   FUNCTION PROTOTYPES
+   ====================================================================== */
 void setBoostValveTravelLimits(int *, int *);
 
 #endif

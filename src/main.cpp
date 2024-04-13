@@ -5,24 +5,24 @@
 #include "boostValveControl.h"
 #include "boostValveSetup.h"
 #include "calculateDesiredBoost.h"
-#include "debugUtils.h"
+#include "globalHelpers.h"
 #include "sensorsSendReceive.h"
 #include "serialCommunications.h"
 
-/*
-Set global debugging on or off
-*/
+/* ======================================================================
+   VARIABLES: Helper variables defined once and accessible everywhere
+   ====================================================================== */
 bool debugMode = false;
 
-/*
-Define pin constants
-*/
+/* ======================================================================
+   VARIABLES: Pin constants
+   ====================================================================== */
 const byte boostValvePositionSignalPin = A14;
 const byte manifoldPressureSensorSignalPin = A15;
 
-/*
-Define variables
-*/
+/* ======================================================================
+   VARIABLES: General use / functional
+   ====================================================================== */
 float currentBoostValveOpenPercentage;
 float currentManifoldPressureRaw;
 
@@ -36,19 +36,21 @@ float currentVehicleSpeed = 0; // Will be updated via serial comms from master
 int currentVehicleRpm = 0;     // Will be updated via serial comms from master
 bool clutchPressed = true;     // Will be updated via serial comms from master
 
-/*
-Define our pretty tiny scheduler objects / tasks
-*/
+/* ======================================================================
+   OBJECTS: Pretty tiny scheduler objects / tasks
+   ====================================================================== */
 ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
 ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
 ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_100MS);
-ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_10MS);
-ptScheduler ptSerialReportDebugStats = ptScheduler(PT_TIME_9S);
+ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_5MS);
+ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_1S);
+ptScheduler ptSerialReportDebugStats = ptScheduler(PT_TIME_5S);
+ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
 
-/*
-Perform setup actions
-*/
+/* ======================================================================
+   SETUP
+   ====================================================================== */
 void setup() {
   SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
@@ -62,9 +64,9 @@ void setup() {
   // ie: There is not enough voltage separation between them. Write to some error buffer to output ?
 }
 
-/*
-Main execution loop
-*/
+/* ======================================================================
+   MAIN LOOP
+   ====================================================================== */
 void loop() {
   // Get the current blade position open percentage
   if (ptGetBoostValveOpenPercentage.call()) {
@@ -76,12 +78,17 @@ void loop() {
     currentManifoldPressureRaw = getManifoldPressure(manifoldPressureSensorSignalPin);
   }
 
-  // Calculate the desired boost we should be running
-  if (ptCalculateDesiredBoostPsi.call()) {
-    currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
+  // Calculate serial message quality stats, and set alarm condition if they are bad
+  if (ptSerialCalculateMessageQualityStats.call()) {
+    serialCalculateMessageQualityStats();
   }
 
-  // Check to see if we have any serial messages waiting and process if so
+  // Output serial debug stats
+  if (ptSerialReportDebugStats.call()) {
+    serialReportMessageQualityStats();
+  }
+
+  // Check to see if we have any serial messages waiting and process if so.
   if (ptSerialReadAndProcessMessage.call()) {
     const char *serialMessage = serialGetIncomingMessage();
     if (serialMessage[0] == '<') {
@@ -89,19 +96,30 @@ void loop() {
     }
   }
 
-  // Output serial debug stats
-  if (ptSerialReportDebugStats.call() && 1 == 2) {
-    serialReportPerformanceStats();
+  // Perform any checks specifically around critical alarm conditions and set flag if needed
+  if (ptCheckFaultConditions.call()) {
+    checkAndSetFaultConditions();
+  }
+
+  // Check if we are in a critical alarm state and need to fail safe. There are a number of conditions we look for to set the alarm:
+  //   - Over boosting, unable to maintain the desired target
+  //   - Not getting valid data from the master for x time (also accounts for bad quality comms)
+  if (globalAlarmCritical == true) {
+    // Stop valve motor immediately and allow spring to open it naturally
+    // TODO: Actually stop driving the valve
+    SERIAL_PORT_MONITOR.println("CRITICAL ALARM DETECTED !!!");
+  } else {
+    // Calculate the desired boost we should be running and update PID valve control to drive to that target
+    if (ptCalculateDesiredBoostPsi.call()) {
+      currentDesiredBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
+      DEBUG_PRINT("Setting target boost level to " + String(currentDesiredBoostPsi) + "psi");
+    }
   }
 }
 
 /*
 TODO:
-- Create a new file for setting of the requested boost. For now is this just a fixed value ?
 - Implement periodic check for error conditions, set a flag which can be passed back to main controller and alarm sounded
-  - Also on no master comms for a specified period, open the valve
-- Build in robust fail safes in case we get corrupt data on the serial comms from master
 - On device boot, if the engine is running (detected without comms from master ideally), fail to wide open valve ... do not even perform calibration etc.
-  This is in case watchdog fires and we reboot the boost controller.
-- Safe guard checks should look at comms reliability also, if it's no good fail safe
+  This is in case watchdog fires and we reboot the boost controller. We don't want to perform calibration at WOT say.
 */

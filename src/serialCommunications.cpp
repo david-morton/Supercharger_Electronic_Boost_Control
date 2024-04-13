@@ -1,6 +1,6 @@
 #include "serialCommunications.h"
+#include "globalHelpers.h"
 #include "serialMessageProcessing.h"
-#include "debugUtils.h"
 
 /* ======================================================================
    VARIABLES
@@ -9,28 +9,57 @@ const int maxMessageSize = 120; // Maximum size of the message
 bool partialMessagePresent = false;
 char partialMessage[maxMessageSize] = {'\0'};
 
-int messagesReceived = 0;
-int partialMessagesReceived = 0;
-int messagesWithBadChecksum = 0;
-int corruptMessages = 0;
+unsigned long messagesReceived = 0;
+unsigned long partialMessagesReceived = 0;
+unsigned long messagesWithBadChecksum = 0;
+unsigned long corruptMessages = 0;
+
+float messageStatPartialPercentage;
+float messageStatBadchecksumPercentage;
+float messageStatCorruptPercentage;
 
 /* ======================================================================
-   FUNCTION: Output serial debug stats
+   FUNCTION: Calculate serial message quality stats
    ====================================================================== */
-void serialReportPerformanceStats() {
-  SERIAL_PORT_MONITOR.print("\nTotal messages received: ");
-  SERIAL_PORT_MONITOR.println(messagesReceived);
-  SERIAL_PORT_MONITOR.print("Partial messages received: ");
-  SERIAL_PORT_MONITOR.println(partialMessagesReceived);
-  SERIAL_PORT_MONITOR.print("Messages with bad checksum: ");
-  SERIAL_PORT_MONITOR.println(messagesWithBadChecksum);
-  SERIAL_PORT_MONITOR.print("Corrupt messages: ");
-  SERIAL_PORT_MONITOR.println(corruptMessages);
-  SERIAL_PORT_MONITOR.println();
+void serialCalculateMessageQualityStats() {
+  messageStatPartialPercentage = (static_cast<float>(partialMessagesReceived) / messagesReceived) * 100.0;
+  messageStatBadchecksumPercentage = (static_cast<float>(messagesWithBadChecksum) / messagesReceived) * 100.0;
+  messageStatCorruptPercentage = (static_cast<float>(corruptMessages) / messagesReceived) * 100.0;
+
+  // Set global critical alarm if stats are not good
+  if (messageStatPartialPercentage > 20 || messageStatBadchecksumPercentage > 5 || messageStatCorruptPercentage > 10) {
+    globalAlarmCritical = true;
+  }
 }
 
 /* ======================================================================
-   FUNCTION: Check if checksum is valid
+   FUNCTION: Output serial message stats
+   ====================================================================== */
+void serialReportMessageQualityStats() {
+  SERIAL_PORT_MONITOR.print("\nTotal messages received: ");
+  SERIAL_PORT_MONITOR.println(messagesReceived);
+
+  SERIAL_PORT_MONITOR.print("Partial messages received: ");
+  SERIAL_PORT_MONITOR.print(partialMessagesReceived);
+  SERIAL_PORT_MONITOR.print(" (");
+  SERIAL_PORT_MONITOR.print(messageStatPartialPercentage);
+  SERIAL_PORT_MONITOR.println("%)");
+
+  SERIAL_PORT_MONITOR.print("Messages with bad checksum: ");
+  SERIAL_PORT_MONITOR.print(messagesWithBadChecksum);
+  SERIAL_PORT_MONITOR.print(" (");
+  SERIAL_PORT_MONITOR.print(messageStatBadchecksumPercentage);
+  SERIAL_PORT_MONITOR.println("%)");
+
+  SERIAL_PORT_MONITOR.print("Corrupt messages: ");
+  SERIAL_PORT_MONITOR.print(corruptMessages);
+  SERIAL_PORT_MONITOR.print(" (");
+  SERIAL_PORT_MONITOR.print(messageStatCorruptPercentage);
+  SERIAL_PORT_MONITOR.println("%)\n");
+}
+
+/* ======================================================================
+   FUNCTION: See if checksum is valid
    ====================================================================== */
 bool serialIsChecksumValid(const char *message) {
   int len = strlen(message);
@@ -73,7 +102,7 @@ bool serialIsChecksumValid(const char *message) {
 }
 
 /* ======================================================================
-   FUNCTION: Check if message format is valid
+   FUNCTION: Check if message structure is valid
    ====================================================================== */
 bool isMessageValid(const char *message) {
   int messageSize = strlen(message);
@@ -190,11 +219,3 @@ const char *serialGetIncomingMessage() {
   strcpy(returnMessage, "empty"); // The buffer was empty and we must return from the function call
   return returnMessage;
 }
-
-// TODO:
-// Calculate checksum from string if possible and compare, discard if computation no good
-//   If checksum is good, extract all fields and hand back to main from function
-//   This should cater for various command ID's
-// Create function for checksum calculation
-//
-// Look at better checksum as value is the same for multiple values

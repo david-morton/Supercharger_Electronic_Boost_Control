@@ -3,9 +3,9 @@
 
 #include <Arduino.h>
 
-/*
-Define function prototypes
-*/
+/* ======================================================================
+   FUNCTION PROTOTYPES
+   ====================================================================== */
 float getBoostValveOpenPercentage(const byte, int *, int *);
 
 #endif
