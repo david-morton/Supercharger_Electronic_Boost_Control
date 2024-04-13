@@ -1,4 +1,5 @@
 #include "serialCommunications.h"
+#include "serialMessageProcessing.h"
 #include "debugUtils.h"
 
 /* ======================================================================
@@ -107,12 +108,6 @@ bool isMessageValid(const char *message) {
   } else {
     return false;
   }
-}
-
-/* ======================================================================
-   FUNCTION: Parse received message and take action based on command ID
-   ====================================================================== */
-void serialProcessMessage(const char *message, float *speed, int *rpm, int *gear, bool *clutchPressed) {
 }
 
 /* ======================================================================

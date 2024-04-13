@@ -12,7 +12,7 @@
 /*
 Set global debugging on or off
 */
-bool debugMode = true;
+bool debugMode = false;
 
 /*
 Define pin constants
@@ -84,14 +84,13 @@ void loop() {
   // Check to see if we have any serial messages waiting and process if so
   if (ptSerialReadAndProcessMessage.call()) {
     const char *serialMessage = serialGetIncomingMessage();
-    // if (strcmp(serialMessage, "empty") != 0) {
-    //   SERIAL_PORT_MONITOR.println(serialMessage);
-    // }
-    serialProcessMessage(serialMessage, &currentVehicleSpeed, &currentVehicleRpm, &currentVehicleGear, &clutchPressed);
+    if (serialMessage[0] == '<') {
+      serialProcessMessage(serialMessage, &currentVehicleSpeed, &currentVehicleRpm, &currentVehicleGear, &clutchPressed);
+    }
   }
 
   // Output serial debug stats
-  if (ptSerialReportDebugStats.call()) {
+  if (ptSerialReportDebugStats.call() && 1 == 2) {
     serialReportPerformanceStats();
   }
 }
