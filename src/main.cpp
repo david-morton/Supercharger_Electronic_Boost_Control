@@ -166,6 +166,9 @@ void loop() {
 
   // Update PID valve control to drive to that target UNLESS we are in a critical alarm state
   if (ptCalculatePidAndDriveValve.call()) {
+    // Compute the PID output
+
+    //
     driveBoostValveToTarget(&boostValveMotorDriver, &currentTargetBoostPsi, &currentManifoldPressurePsi, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
   }
 }
