@@ -1,46 +1,47 @@
 #include "calculateDesiredBoost.h"
+#include "globalHelpers.h"
 
-/*
-Define variables
-*/
-float desiredBoostPsi = 0.0;
-
-/*
-Define structure for holding boost by gear values
-*/
+/* ======================================================================
+   STRUCTURES: Holding boost by gear definitions
+   ====================================================================== */
 struct BoostByGear {
   int gear;
   int psi;
 };
 
-/*
-Define boost by gear lookup values
-*/
+/* ======================================================================
+   VARIABLES: General use / functional
+   ====================================================================== */
+float desiredBoostPsi = 0.0;
+
 const BoostByGear boostByGearData[] = {
-    {0, 0}, // First value is gear, second is boost maximum in PSI
+    {0, 0}, // First value is gear, second is boost maximum in PSI. Gear 0 is neutral
     {1, 2},
     {2, 4},
-    {3, 8},
-    {4, 8},
-    {5, 8},
-    {6, 8}};
+    {3, 6},
+    {4, 6},
+    {5, 6},
+    {6, 6}};
 
-/*
-Define function - Calculate desired boost level
-*/
-
+/* ======================================================================
+   FUNCTION: Determine desired boost level
+   ====================================================================== */
 float calculateDesiredBoostPsi(float speed, int rpm, int gear, bool clutchPressed) {
+  DEBUG_BOOST("Calculating boost based on speed " + String(speed) + "kmh, rpm " + String(rpm) + ", gear " + String(gear) + " and clutch " + String(clutchPressed));
   if (speed <= 2 || gear == 0 || clutchPressed == true || rpm < 1000) {
+    DEBUG_BOOST("Boost target set to 0psi due to conditional match (gear, speed, clutch etc)");
     return 0.0;
   } else {
-    // Calculate boost by gear
+    // Lookup boost by gear
     for (const auto &boostPair : boostByGearData) {
       if (boostPair.gear == gear) {
+        DEBUG_BOOST("Boost target determined as " + String(boostPair.psi) + "psi");
         return boostPair.psi;
       }
     }
   }
-  return desiredBoostPsi;
+  return 0.0;
+  DEBUG_BOOST("Boost target set to 0psi as out of range gear provided");
 }
 
 // TODO: Do we need to account for vacuum here when coasting down hill in gear say ? Should we look to capture pedal position ?

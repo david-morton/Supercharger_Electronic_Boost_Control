@@ -13,8 +13,13 @@
 /* ======================================================================
    VARIABLES: Debug and stat output
    ====================================================================== */
-bool debugMode = false;
-bool reportSerialMessageStats = true;
+bool debugSerialReceive = false;
+bool debugSerialSend = false;
+bool debugValveControl = true;
+bool debugBoost = false;
+bool debugGeneral = false;
+
+bool reportSerialMessageStats = false;
 
 /* ======================================================================
    VARIABLES: Pin constants
@@ -43,8 +48,8 @@ bool clutchPressed = true;     // Will be updated via serial comms from master
    ====================================================================== */
 ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
-ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_100MS);
-ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_100MS);
+ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_1S);
+ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_1S);
 ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_5MS);
 ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_1S);
 ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
@@ -101,13 +106,13 @@ void loop() {
     }
 
     if (commandIdProcessed == 0) { // Master has requested latest info from us
-      DEBUG_PRINT("Received request from master for params upadte (command ID 0 message)");
+      DEBUG_SERIAL_SEND("Received request from master for params upadte (command ID 0 message)");
       serialSendCommandId0Response(globalAlarmCritical, currentTargetBoostPsi, currentManifoldPressureRaw, currentManifoldTempRaw);
     }
 
     if (commandIdProcessed == 1) { // Updated parameters from master
       lastSuccessfulCommandId1Processed = millis();
-      DEBUG_PRINT("Successfully processed command ID 1 message (update pushed params from master)");
+      DEBUG_SERIAL_RECEIVE("Successfully processed command ID 1 message (update pushed params from master)");
     }
   }
 
@@ -116,17 +121,17 @@ void loop() {
     checkAndSetFaultConditions();
   }
 
-  // Check if we are in a critical alarm state and need to fail safe. There are a number of conditions we look for to set the alarm:
+  // Calculate the desired boost we should be running and update PID valve control to drive to that target UNLESS we are in a critical alarm state
+  // Critical alarm state may be set in a number of ways else where in the code:
   //   - Over boosting, unable to maintain the desired target
   //   - Not getting valid data from the master for x time (also accounts for bad quality comms)
-  if (globalAlarmCritical == true) {
-    // Stop valve motor immediately and allow spring to open it naturally
-    // TODO: Actually stop driving the valve
-  } else {
-    // Calculate the desired boost we should be running and update PID valve control to drive to that target
-    if (ptCalculateDesiredBoostPsi.call()) {
+  if (ptCalculateDesiredBoostPsi.call()) {
+    if (globalAlarmCritical == true) {
+      SERIAL_PORT_MONITOR.println("Critical alarm state detected !!");
+      // Stop valve motor immediately and allow spring to open it naturally
+      // TODO: Actually stop driving the valve
+    } else {
       currentTargetBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
-      DEBUG_PRINT("Setting target boost level to " + String(currentTargetBoostPsi) + "psi");
     }
   }
 }

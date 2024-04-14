@@ -12,18 +12,18 @@ int serialProcessMessage(const char *serialMessage, float *speed, int *rpm, int 
   switch (CommandId) {
     case 0:
       // Master is requesting our current information to be sent over serial
-      DEBUG_PRINT("RETURNING command ID " + String(CommandId) + " message " + String(serialMessage));
+      DEBUG_SERIAL_RECEIVE("Got command ID " + String(CommandId) + " message " + String(serialMessage));
       return 0;
 
     case 1:
       // Master is pushing us the current state so we can update our local variables and make good decisions
-      DEBUG_PRINT("PROCESSING command ID " + String(CommandId) + " message " + String(serialMessage));
+      DEBUG_SERIAL_RECEIVE("Got command ID " + String(CommandId) + " message " + String(serialMessage));
       serialProcessCommandId1(serialMessage, speed, rpm, gear, clutchPressed);
       return 1;
 
     default:
       // Unknown message type
-      DEBUG_PRINT("Command ID " + String(CommandId) + " not supported, unable to process " + String(serialMessage));
+      DEBUG_SERIAL_RECEIVE("Command ID " + String(CommandId) + " not supported, unable to process " + String(serialMessage));
       return 255;
   }
 }

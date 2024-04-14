@@ -96,7 +96,7 @@ bool serialIsChecksumValid(const char *message) {
   if (atoi(receivedChecksum) == calculatedChecksum) {
     return true;
   } else {
-    DEBUG_PRINT("BAD Checksum calculation. Received: " + String(receivedChecksum) + ", Calculated: " + calculatedChecksumString);
+    DEBUG_SERIAL_RECEIVE("BAD Checksum calculation. Received: " + String(receivedChecksum) + ", Calculated: " + calculatedChecksumString);
     return false;
   }
 }
@@ -155,8 +155,8 @@ const char *serialGetIncomingMessage() {
   } else if (partialMessagePresent == true) { // If we are appending to a previous partial message, load it in before we start reading new characters
     strcpy(message, partialMessage);
     messageSize = strlen(message);
-    DEBUG_PRINT("Retrieving partial message: " + String(partialMessage));
-    DEBUG_PRINT("Main message now contains: " + String(message));
+    DEBUG_SERIAL_RECEIVE("Retrieving partial message: " + String(partialMessage));
+    DEBUG_SERIAL_RECEIVE("Main message now contains: " + String(message));
   }
 
   // Read characters from Serial until end marker '>' is received
@@ -164,7 +164,7 @@ const char *serialGetIncomingMessage() {
     char incomingChar = SERIAL_PORT_HARDWARE1.read();
 
     if (partialMessagePresent == true) {
-      DEBUG_PRINT("Read in character: " + String(incomingChar));
+      DEBUG_SERIAL_RECEIVE("Read in character: " + String(incomingChar));
     }
 
     // Add the character to the message and guard against buffer overflow
@@ -173,7 +173,7 @@ const char *serialGetIncomingMessage() {
       message[messageSize] = '\0'; // Null terminate after adding each character
     } else {
       // Handle buffer full condition, optionally print an error message
-      DEBUG_PRINT("Buffer full, message truncated");
+      DEBUG_SERIAL_RECEIVE("Buffer full, message truncated");
       break; // Exit the loop to avoid further processing
     }
 
@@ -192,7 +192,7 @@ const char *serialGetIncomingMessage() {
         // Ensure the checksum is valid, discard if it is not
         if (serialIsChecksumValid(message)) {
           // Process the valid message
-          DEBUG_PRINT("GOOD message ready to process: " + String(message));
+          DEBUG_SERIAL_RECEIVE("GOOD message ready to process: " + String(message));
           return message;
         } else {
           messagesWithBadChecksum++;
@@ -201,7 +201,7 @@ const char *serialGetIncomingMessage() {
         }
       } else {
         corruptMessages++;
-        DEBUG_PRINT("CORRUPT message: " + String(message));
+        DEBUG_SERIAL_RECEIVE("CORRUPT message: " + String(message));
         strcpy(returnMessage, "corrupt");
         partialMessagePresent = false; // Clear partial message after processing
         partialMessage[0] = '\0';
@@ -211,7 +211,7 @@ const char *serialGetIncomingMessage() {
       partialMessagePresent = true;
       partialMessagesReceived++;
       strcpy(partialMessage, message);
-      DEBUG_PRINT("Storing partial message: " + String(message) + " and last character is " + String(incomingChar));
+      DEBUG_SERIAL_RECEIVE("Storing partial message: " + String(message) + " and last character is " + String(incomingChar));
       strcpy(returnMessage, "partial"); // We have stored a partially received message and will pick it up next function call
       return returnMessage;
     }
@@ -239,8 +239,7 @@ void serialSendCommandId0Response(bool alarmCritical, float targetBoostPsi, floa
   // Create the final message with start and end markers, and checksum
   String finalMessage = "<" + message + "," + String(checksum) + ">";
 
-  // Send the message over Serial1
-  Serial1.print(finalMessage);
-  SERIAL_PORT_MONITOR.print("Sending ... ");
-  SERIAL_PORT_MONITOR.println(finalMessage);
+  // Send the message
+  SERIAL_PORT_HARDWARE1.print(finalMessage);
+  DEBUG_SERIAL_SEND("Sending " + String(finalMessage));
 }

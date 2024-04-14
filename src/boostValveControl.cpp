@@ -1,14 +1,15 @@
 #include "boostValveControl.h"
+#include "globalHelpers.h"
 
-/*
-Define variables
-*/
+/* ======================================================================
+   VARIABLES: General use / functional
+   ====================================================================== */
 float boostValveOpenPercentage;
 int boostValvePositionReading;
 
-/*
-Define function - Determine current boost valve position percentage
-*/
+/* ======================================================================
+   FUNCTION: Determine current boost valve position percentage
+   ====================================================================== */
 float getBoostValveOpenPercentage(const byte signalPin, int *positionReadingMinimum, int *positionReadingMaximum) {
   const int numReadings = 20; // Number of readings to average
   int totalReadings = 0;
@@ -25,11 +26,14 @@ float getBoostValveOpenPercentage(const byte signalPin, int *positionReadingMini
 
   // Calculate position percentage
   if (averageReading >= *positionReadingMaximum) {
+    DEBUG_VALVE("Valve open percentage hard set to 100\% as " + String(averageReading) + " >= " + String(*positionReadingMaximum));
     return 100.0;
   } else if (averageReading <= *positionReadingMinimum) {
+    DEBUG_VALVE("Valve open percentage hard set to 0\% as " + String(averageReading) + " <= " + String(*positionReadingMinimum));
     return 0.0;
   } else {
     float boostValveOpenPercentage = ((averageReading - *positionReadingMinimum) / (*positionReadingMaximum - *positionReadingMinimum)) * 100.0;
+    DEBUG_VALVE("Valve open percentage calculated as " + String(boostValveOpenPercentage) + "%");
     return boostValveOpenPercentage;
   }
 }

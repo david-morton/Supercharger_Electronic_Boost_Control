@@ -17,7 +17,7 @@ int millisWithoutSerialCommsBeforeFault = 1000; // How long is ms without serial
 void checkAndSetFaultConditions() {
   // Messages from the master not received recently
   if (millis() > 10000 && (millis() > lastSuccessfulCommandId1Processed + millisWithoutSerialCommsBeforeFault)) {
-    DEBUG_PRINT("Setting critical alarm due to serial comms outage !!");
+    DEBUG_SERIAL_SEND("Setting critical alarm due to serial comms outage !!");
     globalAlarmCritical = true;
   }
 }
