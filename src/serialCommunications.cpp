@@ -223,9 +223,8 @@ const char *serialGetIncomingMessage() {
 /* ======================================================================
    FUNCTION: Send response to command ID 0 from master (response message is command ID 2)
    ====================================================================== */
-void serialSendCommandId0Response(bool alarmCritical, float targetBoostPsi, float manifoldPressureRaw, int manifoldTemperatureRaw) {
+void serialSendCommandId0Response(bool alarmCritical, float targetBoostPsi, float manifoldPressurePsi, int manifoldTemperatureRaw) {
   // Calculate human friendly params to send back to master
-  int manifoldPressurePsi = 0;
   int manifoldTempCelcius = 0;
   // Create the message without the start and end markers
   String message = "2," + String(alarmCritical ? "1" : "0") + "," + String(targetBoostPsi) + "," + String(manifoldPressurePsi) + "," + String(manifoldTempCelcius);

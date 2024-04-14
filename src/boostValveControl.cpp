@@ -47,12 +47,6 @@ float getBoostValveOpenPercentage(const byte signalPin, int *positionReadingMini
 /* ======================================================================
    FUNCTION: Drive valve to target boost
    ====================================================================== */
-void driveBoostValveToTarget(CytronMD *boostValveMotorDriver, float *atmosphericManifoldPressureRaw, float *targetBoostPsi,
-                             float *manifoldPressureRaw, int *boostValveMinimumRaw, int *boostValveMaximumRaw) {
-  DEBUG_VALVE("Updating valve motor PID target");
-  DEBUG_VALVE(*targetBoostPsi);       // 6.00
-  DEBUG_VALVE(*manifoldPressureRaw);  // 579.5
-  DEBUG_VALVE(*boostValveMinimumRaw); // 350
-  DEBUG_VALVE(*boostValveMaximumRaw); // 675
-  // Convert PSI target into sensor voltage
+void driveBoostValveToTarget(CytronMD *boostValveMotorDriver, double *targetBoostPsi, double *manifoldPressurePsi, int *boostValveMinimumRaw, int *boostValveMaximumRaw) {
+  DEBUG_VALVE("Updating valve motor drive to target " + String(*targetBoostPsi) + "psi. Manifold currently reading " + String(*manifoldPressurePsi) + "psi");
 }

@@ -66,6 +66,7 @@ extern unsigned long lastSuccessfulCommandId1Processed;
 /* ======================================================================
    FUNCTION PROTOTYPES
    ====================================================================== */
-void checkAndSetFaultConditions();
+void checkAndSetFaultConditions(double *, double *);
+float calculatePsiFromRaw(float);
 
 #endif

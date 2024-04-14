@@ -1,4 +1,5 @@
 #include "CytronMotorDriver.h"
+#include "PID_v1.h"
 #include <Arduino.h>
 #include <Wire.h>
 #include <ptScheduler.h>
@@ -17,7 +18,7 @@
 bool debugSerialReceive = false;
 bool debugSerialSend = false;
 bool debugValveControl = true;
-bool debugBoost = false;
+bool debugBoost = true;
 bool debugGeneral = false;
 
 bool reportSerialMessageStats = false;
@@ -29,19 +30,24 @@ const byte boostValvePositionSignalPin = A14;
 const byte manifoldPressureSensorSignalPin = A15;
 
 /* ======================================================================
-   OBJECTS: Configure the motor driver board
+   VARIABLES: PID Tuning parameters for valve motor control
    ====================================================================== */
-CytronMD boostValveMotorDriver(PWM_DIR, 9, 8);
+double Kp = 0.5; // Proportional term
+double Ki = 0.0; // Integral term
+double Kd = 0.0; // Derivative term
 
 /* ======================================================================
    VARIABLES: General use / functional
    ====================================================================== */
+double currentBoostValveMotorSpeed = 0;
+double currentManifoldPressurePsi;
+double currentTargetBoostPsi;
 float currentBoostValveOpenPercentage;
 float currentManifoldPressureRaw;
-float currentTargetBoostPsi;
 int currentManifoldTempRaw;
 
 float preStartManifoldPressureSensorRaw;
+float preStartManifoldPressureSensorPsi;
 
 int boostValvePositionReadingMinimumRaw; // Throttle blade closed, hold all of the boost
 int boostValvePositionReadingMaximumRaw; // Throttle blade open, release all of the boost
@@ -52,12 +58,18 @@ int currentVehicleRpm = 0;     // Will be updated via serial comms from master
 bool clutchPressed = true;     // Will be updated via serial comms from master
 
 /* ======================================================================
+   OBJECTS: Configure the motor driver board and PID object
+   ====================================================================== */
+CytronMD boostValveMotorDriver(PWM_DIR, 9, 8);
+PID boostValvePID(&currentManifoldPressurePsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, Kp, Ki, Kd, DIRECT);
+
+/* ======================================================================
    OBJECTS: Pretty tiny scheduler objects / tasks
    ====================================================================== */
 ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
 ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_1S);
-ptScheduler ptUpdateBoostValveTarget = ptScheduler(PT_TIME_1S);
+ptScheduler ptCalculatePidAndDriveValve = ptScheduler(PT_TIME_50MS);
 ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_5MS);
 ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_1S);
 ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
@@ -74,12 +86,17 @@ void setup() {
 
   // Get atmospheric reading from manifold pressure sensor before engine starts
   preStartManifoldPressureSensorRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
+  preStartManifoldPressureSensorPsi = calculatePsiFromRaw(preStartManifoldPressureSensorRaw);
 
   // Calibrate travel limits of boost valve
   setBoostValveTravelLimits(&boostValveMotorDriver, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
 
   // TODO: Perform checks of travel limits which were determined and don't hold any boost if out of range
   // ie: There is not enough voltage separation between them. Write to some error buffer to output ?
+
+  // Initialize the PID controller and set the motor speed limits to something sensible
+  boostValvePID.SetMode(AUTOMATIC);
+  boostValvePID.SetOutputLimits(-32, 32);
 }
 
 /* ======================================================================
@@ -91,9 +108,10 @@ void loop() {
     currentBoostValveOpenPercentage = getBoostValveOpenPercentage(boostValvePositionSignalPin, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
   }
 
-  // Get the current manifold pressure (raw sensor reading 0-1023)
+  // Get the current manifold pressure as raw sensor reading (0-1023) and convert to psi
   if (ptGetManifoldPressure.call()) {
     currentManifoldPressureRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
+    currentManifoldPressurePsi = calculatePsiFromRaw(currentManifoldPressureRaw);
   }
 
   // Calculate serial message quality stats, and set alarm condition if they are bad
@@ -101,12 +119,12 @@ void loop() {
     serialCalculateMessageQualityStats();
   }
 
-  // Output serial debug stats
+  // Output serial message quality stats
   if (ptSerialReportMessageQualityStats.call() && reportSerialMessageStats) {
     serialReportMessageQualityStats();
   }
 
-  // Check to see if we have any serial messages waiting and process if so
+  // Check to see if we have any serial messages waiting and if so, process them
   if (ptSerialReadAndProcessMessage.call()) {
     const char *serialMessage = serialGetIncomingMessage();
     int commandIdProcessed = -1;
@@ -118,7 +136,7 @@ void loop() {
 
     if (commandIdProcessed == 0) { // Master has requested latest info from us
       DEBUG_SERIAL_SEND("Received request from master for params upadte (command ID 0 message)");
-      serialSendCommandId0Response(globalAlarmCritical, currentTargetBoostPsi, currentManifoldPressureRaw, currentManifoldTempRaw);
+      serialSendCommandId0Response(globalAlarmCritical, currentTargetBoostPsi, currentManifoldPressurePsi, currentManifoldTempRaw);
     }
 
     if (commandIdProcessed == 1) { // Updated parameters from master
@@ -129,23 +147,26 @@ void loop() {
 
   // Perform any checks specifically around critical alarm conditions and set flag if needed
   if (ptCheckFaultConditions.call()) {
-    checkAndSetFaultConditions();
+    checkAndSetFaultConditions(&currentManifoldPressurePsi, &currentTargetBoostPsi);
   }
 
-  // Calculate the desired boost we should be running and update PID valve control to drive to that target UNLESS we are in a critical alarm state
+  // Calculate the desired boost we should be running unless critical alarm is set
   // Critical alarm state may be set in a number of ways else where in the code:
   //   - Over boosting, unable to maintain the desired target
   //   - Not getting valid data from the master for x time (also accounts for bad quality comms)
   if (ptCalculateDesiredBoostPsi.call()) {
     if (globalAlarmCritical == true) {
-      SERIAL_PORT_MONITOR.println("Critical alarm state detected !!");
       // Stop valve motor immediately and allow spring to open it naturally
       // TODO: Actually stop driving the valve
       currentTargetBoostPsi = 0.0;
     } else {
       currentTargetBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
-      driveBoostValveToTarget(&boostValveMotorDriver, &preStartManifoldPressureSensorRaw, &currentTargetBoostPsi, &currentManifoldPressureRaw, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
     }
+  }
+
+  // Update PID valve control to drive to that target UNLESS we are in a critical alarm state
+  if (ptCalculatePidAndDriveValve.call()) {
+    driveBoostValveToTarget(&boostValveMotorDriver, &currentTargetBoostPsi, &currentManifoldPressurePsi, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
   }
 }
 
