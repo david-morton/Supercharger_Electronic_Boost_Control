@@ -1,16 +1,10 @@
 #include "boostValveSetup.h"
-#include "CytronMotorDriver.h" // Library for the Cytron MDD10 motor driver
 #include <ptScheduler.h>
 
 /* ======================================================================
    VARIABLES: Pin constants
    ====================================================================== */
 const byte boostValvePositionSignal1Pin = A14; // Words here
-
-/* ======================================================================
-   OBJECTS: Configure the motor driver board
-   ====================================================================== */
-CytronMD boostValveMotor(PWM_DIR, 9, 8); // PWM = Pin 3, DIR = Pin 4
 
 /* ======================================================================
    VARIABLES: General use / functional
@@ -21,7 +15,7 @@ bool boostValveOpenPositionSet = false;
 /* ======================================================================
    FUNCTION: Set travel limits of boost valve
    ====================================================================== */
-void setBoostValveTravelLimits(int *positionReadingMinimum, int *positionReadingMaximum) {
+void setBoostValveTravelLimits(CytronMD *boostValveMotorDriver, int *positionReadingMinimum, int *positionReadingMaximum) {
   ptScheduler ptIncrementValvePosition = ptScheduler(PT_TIME_50MS);
   const int windowSize = 10;      // Number of samples to consider for moving average
   int readingsClosed[windowSize]; // Create arrays for moving average samples
@@ -32,7 +26,7 @@ void setBoostValveTravelLimits(int *positionReadingMinimum, int *positionReading
 
   SERIAL_PORT_MONITOR.print("INFO: Setting boost valve travel limits ... ");
   // Set motor speed then immediately iterate on potentiometer / position feedback to determine movement limit
-  boostValveMotor.setSpeed(40); // Speed range is from -255 to 255
+  boostValveMotorDriver->setSpeed(40); // Speed range is from -255 to 255
   while (boostValveClosedPositionSet == false) {
     if (ptIncrementValvePosition.call()) {
       int potentiometerValue = analogRead(boostValvePositionSignal1Pin);
@@ -48,7 +42,7 @@ void setBoostValveTravelLimits(int *positionReadingMinimum, int *positionReading
       // Check for stability in moving average
       if (abs(potentiometerValue - movingAverage) < stabilityThreshold) {
         // Arm has hit a stop, stop the motor
-        boostValveMotor.setSpeed(0);
+        boostValveMotorDriver->setSpeed(0);
         *positionReadingMinimum = movingAverage;
         boostValveClosedPositionSet = true;
       }
@@ -57,7 +51,7 @@ void setBoostValveTravelLimits(int *positionReadingMinimum, int *positionReading
 
   // Set motor speed then immediately iterate on potentiometer / position
   // feedback to determine movement limit
-  boostValveMotor.setSpeed(-40); // Speed range is from -255 to 255
+  boostValveMotorDriver->setSpeed(-40); // Speed range is from -255 to 255
   while (boostValveOpenPositionSet == false) {
     if (ptIncrementValvePosition.call()) {
       int potentiometerValue = analogRead(boostValvePositionSignal1Pin);
@@ -73,7 +67,7 @@ void setBoostValveTravelLimits(int *positionReadingMinimum, int *positionReading
       // Check for stability in moving average
       if (abs(potentiometerValue - movingAverage) < stabilityThreshold) {
         // Arm has hit a stop, stop the motor
-        boostValveMotor.setSpeed(0);
+        boostValveMotorDriver->setSpeed(0);
         *positionReadingMaximum = movingAverage;
         boostValveOpenPositionSet = true;
       }

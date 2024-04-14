@@ -1,15 +1,15 @@
 #include "sensorsSendReceive.h"
 #include <PID_v1.h>
 
-/*
-Define variables
-*/
+/* ======================================================================
+   VARIABLES: General use / functional
+   ====================================================================== */
 int pressureSensorReading;
 
-/*
-Define function - Get motor potentiometer voltage reading
-*/
-float getManifoldPressure(const byte signalPin) {
+/* ======================================================================
+   FUNCTION: Get manifold pressure sensor reading
+   ====================================================================== */
+float getManifoldPressureRaw(const byte signalPin) {
   const int numReadings = 20; // Number of readings to average
   int totalReadings = 0;
 

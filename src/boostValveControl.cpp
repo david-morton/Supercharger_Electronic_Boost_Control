@@ -1,5 +1,7 @@
 #include "boostValveControl.h"
+#include "CytronMotorDriver.h"
 #include "globalHelpers.h"
+#include <PID_v1.h>
 
 /* ======================================================================
    VARIABLES: General use / functional
@@ -36,4 +38,21 @@ float getBoostValveOpenPercentage(const byte signalPin, int *positionReadingMini
     DEBUG_VALVE("Valve open percentage calculated as " + String(boostValveOpenPercentage) + "%");
     return boostValveOpenPercentage;
   }
+}
+
+/* ======================================================================
+   FUNCTION: Drive valve fully open
+   ====================================================================== */
+
+/* ======================================================================
+   FUNCTION: Drive valve to target boost
+   ====================================================================== */
+void driveBoostValveToTarget(CytronMD *boostValveMotorDriver, float *atmosphericManifoldPressureRaw, float *targetBoostPsi,
+                             float *manifoldPressureRaw, int *boostValveMinimumRaw, int *boostValveMaximumRaw) {
+  DEBUG_VALVE("Updating valve motor PID target");
+  DEBUG_VALVE(*targetBoostPsi);       // 6.00
+  DEBUG_VALVE(*manifoldPressureRaw);  // 579.5
+  DEBUG_VALVE(*boostValveMinimumRaw); // 350
+  DEBUG_VALVE(*boostValveMaximumRaw); // 675
+  // Convert PSI target into sensor voltage
 }

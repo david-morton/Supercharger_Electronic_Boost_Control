@@ -6,6 +6,6 @@
 /* ======================================================================
    FUNCTION PROTOTYPES
    ====================================================================== */
-float getManifoldPressure(const byte);
+float getManifoldPressureRaw(const byte);
 
 #endif

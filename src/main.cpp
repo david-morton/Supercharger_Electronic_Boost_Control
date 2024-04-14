@@ -1,6 +1,7 @@
+#include "CytronMotorDriver.h"
 #include <Arduino.h>
 #include <Wire.h>
-#include <ptScheduler.h> // The task scheduling library of choice
+#include <ptScheduler.h>
 
 #include "boostValveControl.h"
 #include "boostValveSetup.h"
@@ -28,6 +29,11 @@ const byte boostValvePositionSignalPin = A14;
 const byte manifoldPressureSensorSignalPin = A15;
 
 /* ======================================================================
+   OBJECTS: Configure the motor driver board
+   ====================================================================== */
+CytronMD boostValveMotorDriver(PWM_DIR, 9, 8);
+
+/* ======================================================================
    VARIABLES: General use / functional
    ====================================================================== */
 float currentBoostValveOpenPercentage;
@@ -35,8 +41,10 @@ float currentManifoldPressureRaw;
 float currentTargetBoostPsi;
 int currentManifoldTempRaw;
 
-int boostValvePositionReadingMinimum; // Throttle blade closed, hold all of the boost
-int boostValvePositionReadingMaximum; // Throttle blade open, release all of the boost
+float preStartManifoldPressureSensorRaw;
+
+int boostValvePositionReadingMinimumRaw; // Throttle blade closed, hold all of the boost
+int boostValvePositionReadingMaximumRaw; // Throttle blade open, release all of the boost
 
 int currentVehicleGear = 0;    // Will be updated via serial comms from master
 float currentVehicleSpeed = 0; // Will be updated via serial comms from master
@@ -64,8 +72,11 @@ void setup() {
   }; // Wait for serial port to open for debug
   SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
 
+  // Get atmospheric reading from manifold pressure sensor before engine starts
+  preStartManifoldPressureSensorRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
+
   // Calibrate travel limits of boost valve
-  setBoostValveTravelLimits(&boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum);
+  setBoostValveTravelLimits(&boostValveMotorDriver, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
 
   // TODO: Perform checks of travel limits which were determined and don't hold any boost if out of range
   // ie: There is not enough voltage separation between them. Write to some error buffer to output ?
@@ -77,12 +88,12 @@ void setup() {
 void loop() {
   // Get the current blade position open percentage
   if (ptGetBoostValveOpenPercentage.call()) {
-    currentBoostValveOpenPercentage = getBoostValveOpenPercentage(boostValvePositionSignalPin, &boostValvePositionReadingMinimum, &boostValvePositionReadingMaximum);
+    currentBoostValveOpenPercentage = getBoostValveOpenPercentage(boostValvePositionSignalPin, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
   }
 
   // Get the current manifold pressure (raw sensor reading 0-1023)
   if (ptGetManifoldPressure.call()) {
-    currentManifoldPressureRaw = getManifoldPressure(manifoldPressureSensorSignalPin);
+    currentManifoldPressureRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
   }
 
   // Calculate serial message quality stats, and set alarm condition if they are bad
@@ -130,8 +141,10 @@ void loop() {
       SERIAL_PORT_MONITOR.println("Critical alarm state detected !!");
       // Stop valve motor immediately and allow spring to open it naturally
       // TODO: Actually stop driving the valve
+      currentTargetBoostPsi = 0.0;
     } else {
       currentTargetBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
+      driveBoostValveToTarget(&boostValveMotorDriver, &preStartManifoldPressureSensorRaw, &currentTargetBoostPsi, &currentManifoldPressureRaw, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
     }
   }
 }
