@@ -40,7 +40,7 @@ float getBoostValveOpenPercentage(int *positionReadingCurrent, int *positionRead
     DEBUG_VALVE("Valve open percentage hard set to 0\% as " + String(*positionReadingCurrent) + " <= " + String(*positionReadingMinimum));
     return 0.0;
   } else {
-    float boostValveOpenPercentage = ((*positionReadingCurrent - *positionReadingMinimum) / (*positionReadingMaximum - *positionReadingMinimum)) * 100.0;
+    float boostValveOpenPercentage = (static_cast<float>(*positionReadingCurrent - *positionReadingMinimum) / (*positionReadingMaximum - *positionReadingMinimum)) * 100.0;
     DEBUG_VALVE("Valve open percentage calculated as " + String(boostValveOpenPercentage) + "%");
     return boostValveOpenPercentage;
   }
@@ -57,15 +57,14 @@ void driveBoostValveToTarget(CytronMD *boostValveMotorDriver, PID *boostValvePid
                              int *boostValveMinimumRaw, int *boostValveMaximumRaw, int *currentBoostValvePositionReadingRaw) {
   // Compute the latest output value for our PID control object
   boostValvePid->Compute();
-  DEBUG_VALVE("Computed new PID output (motor speed) to be " + String(*boostValveMotorSpeed));
 
   // Update the motor speed based on PID output calculation and current position feedback
-  if (currentBoostValvePositionReadingRaw >= boostValveMaximumRaw || currentBoostValvePositionReadingRaw <= boostValveMinimumRaw) {
-    DEBUG_VALVE("Travel limit reached, stopping motor. Current position " + String(*currentBoostValvePositionReadingRaw) +
-                " vs min of " + String(*boostValveMinimumRaw) + " and max of " + String(*boostValveMaximumRaw));
+  if (*currentBoostValvePositionReadingRaw >= *boostValveMaximumRaw || *currentBoostValvePositionReadingRaw <= *boostValveMinimumRaw) {
+    // DEBUG_VALVE("Travel limit reached, stopping motor. Current position " + String(*currentBoostValvePositionReadingRaw) +
+                // " vs min of " + String(*boostValveMinimumRaw) + " and max of " + String(*boostValveMaximumRaw));
     boostValveMotorDriver->setSpeed(0);
   } else {
-    DEBUG_VALVE("Updating PID output (motor speed) to be " + String(*boostValveMotorSpeed));
+    // DEBUG_VALVE("Updating PID output (motor speed) to be " + String(*boostValveMotorSpeed));
     boostValveMotorDriver->setSpeed(*boostValveMotorSpeed);
   }
 }

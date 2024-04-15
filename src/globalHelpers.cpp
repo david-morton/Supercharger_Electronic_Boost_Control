@@ -15,7 +15,7 @@ const int millisWithoutSerialCommsBeforeFault = 1000; // How long is ms without 
    FUNCTION: Check various fault conditions and set alarms if needed
    ====================================================================== */
 const float overboostAllowancePressure = 1.1; // Allow some amount of wiggle to absorp transient readings
-const int overboostAllowanceTime = 1000;      // Time we must be in overboost before setting alarm condition
+const int overboostAllowanceTime = 8000;      // Time we must be in overboost before setting alarm condition
 unsigned long overboostStartMillis;
 bool inOverboost = false;
 
@@ -33,7 +33,7 @@ void checkAndSetFaultConditions(double *currentManifoldPressurePsi, double *curr
       overboostStartMillis = millis();
     }
     if ((millis() - overboostStartMillis) > overboostAllowanceTime && inOverboost == true && millis() > 10000) {
-      DEBUG_BOOST("Setting critical alarm due to over boosting !!");
+      DEBUG_BOOST("Setting critical alarm due to over boosting !! " + String(*currentManifoldPressurePsi) + "psi vs " + String(*currentTargetBoostPsi * overboostAllowancePressure) + "psi");
       globalAlarmCritical = true;
     }
   } else {

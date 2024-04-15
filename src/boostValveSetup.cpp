@@ -26,7 +26,7 @@ void setBoostValveTravelLimits(CytronMD *boostValveMotorDriver, int *positionRea
 
   SERIAL_PORT_MONITOR.print("INFO: Setting boost valve travel limits ... ");
   // Set motor speed then immediately iterate on potentiometer / position feedback to determine movement limit
-  boostValveMotorDriver->setSpeed(40); // Speed range is from -255 to 255
+  boostValveMotorDriver->setSpeed(-100); // Speed range is from -255 to 255
   while (boostValveClosedPositionSet == false) {
     if (ptIncrementValvePosition.call()) {
       int potentiometerValue = analogRead(boostValvePositionSignal1Pin);
@@ -51,7 +51,7 @@ void setBoostValveTravelLimits(CytronMD *boostValveMotorDriver, int *positionRea
 
   // Set motor speed then immediately iterate on potentiometer / position
   // feedback to determine movement limit
-  boostValveMotorDriver->setSpeed(-40); // Speed range is from -255 to 255
+  boostValveMotorDriver->setSpeed(100); // Speed range is from -255 to 255
   while (boostValveOpenPositionSet == false) {
     if (ptIncrementValvePosition.call()) {
       int potentiometerValue = analogRead(boostValvePositionSignal1Pin);

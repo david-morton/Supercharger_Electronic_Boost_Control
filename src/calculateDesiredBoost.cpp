@@ -18,10 +18,10 @@ const BoostByGear boostByGearData[] = {
     {0, 0}, // First value is gear, second is boost maximum in PSI. Gear 0 is neutral
     {1, 2},
     {2, 4},
-    {3, 6},
-    {4, 6},
-    {5, 6},
-    {6, 6}};
+    {3, 4},
+    {4, 4},
+    {5, 4},
+    {6, 4}};
 
 /* ======================================================================
    FUNCTION: Determine desired boost level

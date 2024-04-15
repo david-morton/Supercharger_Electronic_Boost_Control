@@ -32,22 +32,25 @@ const byte manifoldPressureSensorSignalPin = A15;
 /* ======================================================================
    VARIABLES: PID Tuning parameters for valve motor control
    ====================================================================== */
-double Kp = 0.5; // Proportional term
-double Ki = 0.0; // Integral term
-double Kd = 0.0; // Derivative term
+double Kp = 30.0; // Proportional term      30
+double Ki = 0.0;  // Integral term          7
+double Kd = 0.0;  // Derivative term        2
+
+int minimumMotorSpeed = -250; // This is also hard coded in the setBoostValveTravelLimits function
+int maximumMotorSpeed = 250;  // This is also hard coded in the setBoostValveTravelLimits function
 
 /* ======================================================================
    VARIABLES: General use / functional
    ====================================================================== */
 double currentBoostValveMotorSpeed = 0;
-double currentManifoldPressurePsi;
+double currentManifoldPressureAboveAtmosphericPsi;
 double currentTargetBoostPsi;
 float currentBoostValveOpenPercentage;
 float currentManifoldPressureRaw;
 int currentManifoldTempRaw;
 
-float preStartManifoldPressureSensorRaw;
-float preStartManifoldPressureSensorPsi;
+float manifoldPressureAtmosphericOffsetRaw;
+float manifoldPressureAtmosphericOffsetPsi;
 
 int currentBoostValvePositionReadingRaw;
 int boostValvePositionReadingMinimumRaw; // Throttle blade closed, hold all of the boost
@@ -62,20 +65,22 @@ bool clutchPressed = true;     // Will be updated via serial comms from master
    OBJECTS: Configure the motor driver board and PID object
    ====================================================================== */
 CytronMD boostValveMotorDriver(PWM_DIR, 9, 8);
-PID boostValvePID(&currentManifoldPressurePsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, Kp, Ki, Kd, DIRECT);
+PID boostValvePID(&currentManifoldPressureAboveAtmosphericPsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, Kp, Ki, Kd, REVERSE);
 
 /* ======================================================================
    OBJECTS: Pretty tiny scheduler objects / tasks
    ====================================================================== */
-ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_1S);
-ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_100MS);
-ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_1S);
-ptScheduler ptCalculatePidAndDriveValve = ptScheduler(PT_TIME_50MS);
+ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_100MS);
+ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_50MS);
+ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_200MS);
+ptScheduler ptCalculatePidAndDriveValve = ptScheduler(PT_TIME_20MS);
 ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_5MS);
 ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_1S);
 ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
 ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
-ptScheduler ptGetBoostValvePositionReadingRaw = ptScheduler(PT_TIME_50MS);
+ptScheduler ptGetBoostValvePositionReadingRaw = ptScheduler(PT_TIME_20MS);
+
+ptScheduler ptOutputTargetAndCurrentBoostDebug = ptScheduler(PT_TIME_1S);
 
 /* ======================================================================
    SETUP
@@ -83,12 +88,18 @@ ptScheduler ptGetBoostValvePositionReadingRaw = ptScheduler(PT_TIME_50MS);
 void setup() {
   SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
-  };                                   // Wait for serial port to open for debug
+  }; // Wait for serial port to open for debug
   SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
 
   // Get atmospheric reading from manifold pressure sensor before engine starts
-  preStartManifoldPressureSensorRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
-  preStartManifoldPressureSensorPsi = calculatePsiFromRaw(preStartManifoldPressureSensorRaw);
+  manifoldPressureAtmosphericOffsetRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
+  manifoldPressureAtmosphericOffsetPsi = calculatePsiFromRaw(manifoldPressureAtmosphericOffsetRaw);
+
+  // Output atmospheric readings
+  SERIAL_PORT_MONITOR.println("\nINFO: Setting current atospheric pressure offset ... ");
+  SERIAL_PORT_MONITOR.print("  Set at ");
+  SERIAL_PORT_MONITOR.print(manifoldPressureAtmosphericOffsetPsi);
+  SERIAL_PORT_MONITOR.println("psi\n");
 
   // Calibrate travel limits of boost valve
   setBoostValveTravelLimits(&boostValveMotorDriver, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
@@ -98,7 +109,7 @@ void setup() {
 
   // Initialize the PID controller and set the motor speed limits to something sensible
   boostValvePID.SetMode(AUTOMATIC);
-  boostValvePID.SetOutputLimits(-32, 32);
+  boostValvePID.SetOutputLimits(minimumMotorSpeed, maximumMotorSpeed);
 }
 
 /* ======================================================================
@@ -115,10 +126,10 @@ void loop() {
     currentBoostValveOpenPercentage = getBoostValveOpenPercentage(&currentBoostValvePositionReadingRaw, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
   }
 
-  // Get the current manifold pressure as raw sensor reading (0-1023) and convert to psi
+  // Get the current manifold pressure as raw sensor reading (0-1023) and convert to psi above atmospheric
   if (ptGetManifoldPressure.call()) {
     currentManifoldPressureRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
-    currentManifoldPressurePsi = calculatePsiFromRaw(currentManifoldPressureRaw);
+    currentManifoldPressureAboveAtmosphericPsi = calculatePsiFromRaw(currentManifoldPressureRaw) - manifoldPressureAtmosphericOffsetPsi;
   }
 
   // Calculate serial message quality stats, and set alarm condition if they are bad
@@ -143,7 +154,7 @@ void loop() {
 
     if (commandIdProcessed == 0) { // Master has requested latest info from us
       DEBUG_SERIAL_SEND("Received request from master for params upadte (command ID 0 message)");
-      serialSendCommandId0Response(globalAlarmCritical, currentTargetBoostPsi, currentManifoldPressurePsi, currentManifoldTempRaw);
+      serialSendCommandId0Response(globalAlarmCritical, currentTargetBoostPsi, currentManifoldPressureAboveAtmosphericPsi, currentManifoldTempRaw);
     }
 
     if (commandIdProcessed == 1) { // Updated parameters from master
@@ -154,7 +165,7 @@ void loop() {
 
   // Perform any checks specifically around critical alarm conditions and set flag if needed
   if (ptCheckFaultConditions.call()) {
-    checkAndSetFaultConditions(&currentManifoldPressurePsi, &currentTargetBoostPsi);
+    checkAndSetFaultConditions(&currentManifoldPressureAboveAtmosphericPsi, &currentTargetBoostPsi);
   }
 
   // Calculate the desired boost we should be running unless critical alarm is set
@@ -177,6 +188,11 @@ void loop() {
       driveBoostValveToTarget(&boostValveMotorDriver, &boostValvePID, &currentBoostValveMotorSpeed, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw, &currentBoostValvePositionReadingRaw);
     }
   }
+
+  // Some temporary debug that may remain in place
+  if (ptOutputTargetAndCurrentBoostDebug.call()) {
+    DEBUG_BOOST("Target boost is " + String(currentTargetBoostPsi) + "psi and current is " + String(currentManifoldPressureAboveAtmosphericPsi) + "psi");
+  }
 }
 
 /*
@@ -184,4 +200,5 @@ TODO:
 - Implement periodic check for error conditions, set a flag which can be passed back to main controller and alarm sounded
 - On device boot, if the engine is running (detected without comms from master ideally), fail to wide open valve ... do not even perform calibration etc.
   This is in case watchdog fires and we reboot the boost controller. We don't want to perform calibration at WOT say.
+- Ensure that the atmospheric check is within sensible bounds, ideally engine confirmed off !! Can setup wait until getting serial data ??
 */
