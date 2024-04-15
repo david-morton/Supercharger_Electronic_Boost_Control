@@ -49,6 +49,7 @@ int currentManifoldTempRaw;
 float preStartManifoldPressureSensorRaw;
 float preStartManifoldPressureSensorPsi;
 
+int currentBoostValvePositionReadingRaw;
 int boostValvePositionReadingMinimumRaw; // Throttle blade closed, hold all of the boost
 int boostValvePositionReadingMaximumRaw; // Throttle blade open, release all of the boost
 
@@ -74,6 +75,7 @@ ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_5MS);
 ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_1S);
 ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
 ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
+ptScheduler ptGetBoostValvePositionReadingRaw = ptScheduler(PT_TIME_50MS);
 
 /* ======================================================================
    SETUP
@@ -81,7 +83,7 @@ ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
 void setup() {
   SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
-  }; // Wait for serial port to open for debug
+  };                                   // Wait for serial port to open for debug
   SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
 
   // Get atmospheric reading from manifold pressure sensor before engine starts
@@ -103,9 +105,14 @@ void setup() {
    MAIN LOOP
    ====================================================================== */
 void loop() {
+  // Get the current boost valve blade position as a raw reading
+  if (ptGetBoostValvePositionReadingRaw.call()) {
+    currentBoostValvePositionReadingRaw = getBoostValvePositionReadingRaw(&boostValvePositionSignalPin);
+  }
+
   // Get the current blade position open percentage
   if (ptGetBoostValveOpenPercentage.call()) {
-    currentBoostValveOpenPercentage = getBoostValveOpenPercentage(boostValvePositionSignalPin, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
+    currentBoostValveOpenPercentage = getBoostValveOpenPercentage(&currentBoostValvePositionReadingRaw, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
   }
 
   // Get the current manifold pressure as raw sensor reading (0-1023) and convert to psi
@@ -156,20 +163,19 @@ void loop() {
   //   - Not getting valid data from the master for x time (also accounts for bad quality comms)
   if (ptCalculateDesiredBoostPsi.call()) {
     if (globalAlarmCritical == true) {
-      // Stop valve motor immediately and allow spring to open it naturally
-      // TODO: Actually stop driving the valve
       currentTargetBoostPsi = 0.0;
     } else {
       currentTargetBoostPsi = calculateDesiredBoostPsi(currentVehicleSpeed, currentVehicleRpm, currentVehicleGear, clutchPressed);
     }
   }
 
-  // Update PID valve control to drive to that target UNLESS we are in a critical alarm state
+  // Update PID valve control to drive to that target unless critical alarm is set in which case, stop the motor and let the sprint open the valve
   if (ptCalculatePidAndDriveValve.call()) {
-    // Compute the PID output
-
-    //
-    driveBoostValveToTarget(&boostValveMotorDriver, &currentTargetBoostPsi, &currentManifoldPressurePsi, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
+    if (globalAlarmCritical) {
+      boostValveMotorDriver.setSpeed(0);
+    } else {
+      driveBoostValveToTarget(&boostValveMotorDriver, &boostValvePID, &currentBoostValveMotorSpeed, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw, &currentBoostValvePositionReadingRaw);
+    }
   }
 }
 

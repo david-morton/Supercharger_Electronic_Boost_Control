@@ -2,12 +2,14 @@
 #define BOOSTVALVECONTROL_H
 
 #include "CytronMotorDriver.h"
+#include "PID_v1.h"
 #include <Arduino.h>
 
 /* ======================================================================
    FUNCTION PROTOTYPES
    ====================================================================== */
-float getBoostValveOpenPercentage(const byte, int *, int *);
-void driveBoostValveToTarget(CytronMD *, double *, double *, int *, int *);
+int getBoostValvePositionReadingRaw(const byte *);
+float getBoostValveOpenPercentage(int *, int *, int *);
+void driveBoostValveToTarget(CytronMD *, PID *, double *, int *, int *, int *);
 
 #endif
