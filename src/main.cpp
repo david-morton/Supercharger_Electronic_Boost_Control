@@ -13,13 +13,71 @@
 #include "serialMessageProcessing.h"
 
 /* ======================================================================
+   VARIABLES: Temporary PID debug items, used with 3 potentiometers
+   ====================================================================== */
+const byte pidPinProportional = A3;
+const byte pidPinIntegral = A4;
+const byte pidPinDerivative = A5;
+
+double pidLiveValueProportional;
+double pidLiveValueIntegral;
+double pidLiveValueDerivative;
+
+int pidRangeMaxProportional = 50;
+int pidRangeMaxIntegral = 10;
+int pidRangeMaxDerivative = 5;
+
+ptScheduler ptReadPidPotsAndUpdateValues = ptScheduler(PT_TIME_100MS);
+
+// Define hysteresis values for each potentiometer
+const float hysteresisProportional = 1.0; // Adjust as needed
+const float hysteresisIntegral = 0.1;     // Adjust as needed
+const float hysteresisDerivative = 0.1;   // Adjust as needed
+
+// Define last potentiometer values
+int lastPidPotProportionalRaw = 0;
+int lastPidPotIntegralRaw = 0;
+int lastPidPotDerivativeRaw = 0;
+
+void readPidPotsAndUpdateValues(PID *pidMotor, double *pidLiveValueProportional, double *pidLiveValueIntegral, double *pidLiveValueDerivative) {
+  int pidPotProportionalRaw = getAveragedAnaloguePinReading(pidPinProportional, 10, 0);
+  int pidPotIntegralRaw = getAveragedAnaloguePinReading(pidPinIntegral, 10, 0);
+  int pidPotDerivativeRaw = getAveragedAnaloguePinReading(pidPinDerivative, 10, 0);
+
+  // Check if any of the potentiometer values have changed with hysteresis
+  if (abs(pidPotProportionalRaw - lastPidPotProportionalRaw) > hysteresisProportional ||
+      abs(pidPotIntegralRaw - lastPidPotIntegralRaw) > hysteresisIntegral ||
+      abs(pidPotDerivativeRaw - lastPidPotDerivativeRaw) > hysteresisDerivative) {
+
+    // Update last potentiometer values
+    lastPidPotProportionalRaw = pidPotProportionalRaw;
+    lastPidPotIntegralRaw = pidPotIntegralRaw;
+    lastPidPotDerivativeRaw = pidPotDerivativeRaw;
+
+    // Adjust the mapping for higher precision
+    double factor = 100.0;
+
+    *pidLiveValueProportional = map(pidPotProportionalRaw, 0, 1023, pidRangeMaxProportional, 0);
+    *pidLiveValueIntegral = map(pidPotIntegralRaw, 0, 1023, pidRangeMaxIntegral * factor, 0) / factor;
+    *pidLiveValueDerivative = map(pidPotDerivativeRaw, 0, 1023, pidRangeMaxDerivative * factor, 0) / factor;
+
+    pidMotor->SetTunings(*pidLiveValueProportional, *pidLiveValueIntegral, *pidLiveValueDerivative);
+
+    DEBUG_PID("Proportional value: " + String(*pidLiveValueProportional, 2) +
+              " Integral value: " + String(*pidLiveValueIntegral, 2) +
+              " Derivative value: " + String(*pidLiveValueDerivative, 2));
+  }
+}
+
+/* ======================================================================
    VARIABLES: Debug and stat output
    ====================================================================== */
 bool debugSerialReceive = false;
 bool debugSerialSend = false;
-bool debugValveControl = true;
-bool debugBoost = true;
+bool debugValveControl = false;
+bool debugBoost = false;
 bool debugGeneral = false;
+bool debugPid = true;
 
 bool reportSerialMessageStats = false;
 
@@ -49,7 +107,7 @@ float currentBoostValveOpenPercentage;
 float currentManifoldPressureRaw;
 int currentManifoldTempRaw;
 
-float manifoldPressureAtmosphericOffsetRaw;
+int manifoldPressureAtmosphericOffsetRaw;
 float manifoldPressureAtmosphericOffsetPsi;
 
 int currentBoostValvePositionReadingRaw;
@@ -65,7 +123,8 @@ bool clutchPressed = true;     // Will be updated via serial comms from master
    OBJECTS: Configure the motor driver board and PID object
    ====================================================================== */
 CytronMD boostValveMotorDriver(PWM_DIR, 9, 8);
-PID boostValvePID(&currentManifoldPressureAboveAtmosphericPsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, Kp, Ki, Kd, REVERSE);
+// PID boostValvePID(&currentManifoldPressureAboveAtmosphericPsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, Kp, Ki, Kd, REVERSE);
+PID boostValvePID(&currentManifoldPressureAboveAtmosphericPsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, pidLiveValueProportional, pidLiveValueIntegral, pidLiveValueDerivative, REVERSE);
 
 /* ======================================================================
    OBJECTS: Pretty tiny scheduler objects / tasks
@@ -88,11 +147,11 @@ ptScheduler ptOutputTargetAndCurrentBoostDebug = ptScheduler(PT_TIME_1S);
 void setup() {
   SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
-  };                                   // Wait for serial port to open for debug
+  }; // Wait for serial port to open for debug
   SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
 
   // Get atmospheric reading from manifold pressure sensor before engine starts
-  manifoldPressureAtmosphericOffsetRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
+  manifoldPressureAtmosphericOffsetRaw = getAveragedAnaloguePinReading(manifoldPressureSensorSignalPin, 20, 0);
   manifoldPressureAtmosphericOffsetPsi = calculatePsiFromRaw(manifoldPressureAtmosphericOffsetRaw);
 
   // Output atmospheric readings
@@ -128,7 +187,7 @@ void loop() {
 
   // Get the current manifold pressure as raw sensor reading (0-1023) and convert to psi above atmospheric
   if (ptGetManifoldPressure.call()) {
-    currentManifoldPressureRaw = getManifoldPressureRaw(manifoldPressureSensorSignalPin);
+    currentManifoldPressureRaw = getAveragedAnaloguePinReading(manifoldPressureSensorSignalPin, 20, 0);
     currentManifoldPressureAboveAtmosphericPsi = calculatePsiFromRaw(currentManifoldPressureRaw) - manifoldPressureAtmosphericOffsetPsi;
   }
 
@@ -192,6 +251,11 @@ void loop() {
   // Some temporary debug that may remain in place
   if (ptOutputTargetAndCurrentBoostDebug.call()) {
     DEBUG_BOOST("Target boost is " + String(currentTargetBoostPsi) + "psi and current is " + String(currentManifoldPressureAboveAtmosphericPsi) + "psi");
+  }
+
+  // Used for tuning PID values using potentiometers to adjust P, I and D values
+  if (ptReadPidPotsAndUpdateValues.call()) {
+    readPidPotsAndUpdateValues(&boostValvePID, &pidLiveValueProportional, &pidLiveValueIntegral, &pidLiveValueDerivative);
   }
 }
 

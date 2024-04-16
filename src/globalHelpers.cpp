@@ -50,8 +50,26 @@ const float boschMagicNumber1 = 5.4 / 280;  // 0.0192857142857143
 const float boschMagicNumber2 = 0.85 / 280; // 0.0030357142857143
 const float sensorSupplyVoltage = 5.0;      // Included for clarity and in case we can't supply exactly 5V
 
-float calculatePsiFromRaw(float currentManifoldPressureRaw) {
+float calculatePsiFromRaw(int currentManifoldPressureRaw) {
   float sensorCurrentVoltage = (currentManifoldPressureRaw / 1023) * 5;
   float pressureKpa = (sensorCurrentVoltage - boschMagicNumber1 * sensorSupplyVoltage) / (boschMagicNumber2 * sensorSupplyVoltage);
   return pressureKpa * 0.145038; // Convert kPa to PSI
+}
+
+/* ======================================================================
+   FUNCTION: Get average readings from analogue pin
+   ====================================================================== */
+int getAveragedAnaloguePinReading(byte pin, int samples, int delayMs) {
+  int totalReadings = 0;
+
+  for (int i = 0; i < samples; i++) {
+    if (delayMs != 0) {
+      delay(delayMs);
+    }
+    totalReadings += analogRead(pin);
+  }
+
+  // Calculate average of the readings
+  int averageReading = totalReadings / static_cast<float>(samples);
+  return averageReading;
 }

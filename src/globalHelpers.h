@@ -11,6 +11,7 @@ extern bool debugSerialSend;
 extern bool debugValveControl;
 extern bool debugBoost;
 extern bool debugGeneral;
+extern bool debugPid;
 
 // Define the DEBUG_SERIAL_RECEIVE macro
 #define DEBUG_SERIAL_RECEIVE(message)                       \
@@ -48,6 +49,15 @@ extern bool debugGeneral;
     }                                              \
   } while (0)
 
+// Define the DEBUG_PID macro
+#define DEBUG_PID(message)                       \
+  do {                                           \
+    if (debugPid) {                              \
+      SERIAL_PORT_MONITOR.print("[DEBUG PID] "); \
+      SERIAL_PORT_MONITOR.println(message);      \
+    }                                            \
+  } while (0)
+
 // Define the DEBUG_GENERAL macro
 #define DEBUG_GENERAL(message)                       \
   do {                                               \
@@ -67,6 +77,7 @@ extern unsigned long lastSuccessfulCommandId1Processed;
    FUNCTION PROTOTYPES
    ====================================================================== */
 void checkAndSetFaultConditions(double *, double *);
-float calculatePsiFromRaw(float);
+float calculatePsiFromRaw(int);
+int getAveragedAnaloguePinReading(byte pin, int samples, int delayMs);
 
 #endif
