@@ -36,8 +36,8 @@ double Kp = 30.0; // Proportional term      30
 double Ki = 0.0;  // Integral term          7
 double Kd = 0.0;  // Derivative term        2
 
-int minimumMotorSpeed = -250; // This is also hard coded in the setBoostValveTravelLimits function
-int maximumMotorSpeed = 250;  // This is also hard coded in the setBoostValveTravelLimits function
+const int maximumReverseMotorSpeed = -250; // This is also hard coded in the setBoostValveTravelLimits function
+const int maximumForwardMotorSpeed = 250;  // This is also hard coded in the setBoostValveTravelLimits function
 
 /* ======================================================================
    VARIABLES: General use / functional
@@ -88,7 +88,7 @@ ptScheduler ptOutputTargetAndCurrentBoostDebug = ptScheduler(PT_TIME_1S);
 void setup() {
   SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
-  }; // Wait for serial port to open for debug
+  };                                   // Wait for serial port to open for debug
   SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
 
   // Get atmospheric reading from manifold pressure sensor before engine starts
@@ -109,7 +109,7 @@ void setup() {
 
   // Initialize the PID controller and set the motor speed limits to something sensible
   boostValvePID.SetMode(AUTOMATIC);
-  boostValvePID.SetOutputLimits(minimumMotorSpeed, maximumMotorSpeed);
+  boostValvePID.SetOutputLimits(maximumReverseMotorSpeed, maximumForwardMotorSpeed);
 }
 
 /* ======================================================================
@@ -185,7 +185,7 @@ void loop() {
     if (globalAlarmCritical) {
       boostValveMotorDriver.setSpeed(0);
     } else {
-      driveBoostValveToTarget(&boostValveMotorDriver, &boostValvePID, &currentBoostValveMotorSpeed, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw, &currentBoostValvePositionReadingRaw);
+      driveBoostValveToTargetByPressurePid(&boostValveMotorDriver, &boostValvePID, &currentBoostValveMotorSpeed, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw, &currentBoostValvePositionReadingRaw);
     }
   }
 

@@ -47,24 +47,27 @@ float getBoostValveOpenPercentage(int *positionReadingCurrent, int *positionRead
 }
 
 /* ======================================================================
-   FUNCTION: Drive valve fully open
+   FUNCTION: Drive valve to target boost by PID pressure feedback
    ====================================================================== */
-
-/* ======================================================================
-   FUNCTION: Drive valve to target boost
-   ====================================================================== */
-void driveBoostValveToTarget(CytronMD *boostValveMotorDriver, PID *boostValvePid, double *boostValveMotorSpeed,
-                             int *boostValveMinimumRaw, int *boostValveMaximumRaw, int *currentBoostValvePositionReadingRaw) {
+void driveBoostValveToTargetByPressurePid(CytronMD *boostValveMotorDriver, PID *boostValvePid, double *boostValveMotorSpeed,
+                                          int *boostValveMinimumRaw, int *boostValveMaximumRaw, int *currentBoostValvePositionReadingRaw) {
   // Compute the latest output value for our PID control object
   boostValvePid->Compute();
 
   // Update the motor speed based on PID output calculation and current position feedback
   if (*currentBoostValvePositionReadingRaw >= *boostValveMaximumRaw || *currentBoostValvePositionReadingRaw <= *boostValveMinimumRaw) {
     // DEBUG_VALVE("Travel limit reached, stopping motor. Current position " + String(*currentBoostValvePositionReadingRaw) +
-                // " vs min of " + String(*boostValveMinimumRaw) + " and max of " + String(*boostValveMaximumRaw));
+    // " vs min of " + String(*boostValveMinimumRaw) + " and max of " + String(*boostValveMaximumRaw));
     boostValveMotorDriver->setSpeed(0);
   } else {
     // DEBUG_VALVE("Updating PID output (motor speed) to be " + String(*boostValveMotorSpeed));
     boostValveMotorDriver->setSpeed(*boostValveMotorSpeed);
   }
+}
+
+/* ======================================================================
+   FUNCTION: Drive valve to target position
+   ====================================================================== */
+void driveBoostValveToTargetByPosition(CytronMD *boostValveMotorDriver, int *boostValveMinimumRaw, int *boostValveMaximumRaw,
+                                       int *currentBoostValvePositionReadingRaw, int *maximumForwardMotorSpeed, int *maximumReverseMotorSpeed) {
 }
