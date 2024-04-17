@@ -144,9 +144,6 @@ void setup() {
   // Calibrate travel limits of boost valve (drive against full open / closed and record readings)
   setBoostValveTravelLimits(&boostValveMotorDriver, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
 
-  // TODO: Perform checks of travel limits which were determined and don't hold any boost if out of range
-  // ie: There is not enough voltage separation between them. Write to some error buffer to output ?
-
   // Initialize the PID controller and set the motor speed limits
   boostValvePressurePID.SetMode(AUTOMATIC);
   boostValvePressurePID.SetOutputLimits(maximumReverseMotorSpeed, maximumForwardMotorSpeed);
@@ -161,7 +158,7 @@ void setup() {
 void loop() {
   // Get the current boost valve blade position as a raw reading and update percentage
   if (ptGetBoostValveFeedbackPosition.call()) {
-    currentBoostValvePositionReadingRaw = getBoostValvePositionReadingRaw(&boostValvePositionSignalPin);
+    currentBoostValvePositionReadingRaw = getAveragedAnaloguePinReading(boostValvePositionSignalPin, 20, 0);
     currentBoostValveOpenPercentage = getBoostValveOpenPercentage(&currentBoostValvePositionReadingRaw, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
   }
 
@@ -223,7 +220,7 @@ void loop() {
   // If critical alarm is set, stop the motor and let the return spring open the valve to 'fail safe'
   if (ptCalculatePidAndDriveValve.call()) {
     if (globalAlarmCritical) {
-      boostValveMotorDriver.setSpeed(0); // TODO: Look at actively driving valve open then stopping motor
+      boostValveMotorDriver.setSpeed(0);
     } else if (currentTargetBoostPsi == 0) {
       currentTargetBoostValveOpenPercentage = 100; // Fully open, release the boost
       driveBoostValveToTargetByOpenPercentagePid(&boostValveMotorDriver, &boostValvePositionPID, &currentBoostValveOpenPercentage,
@@ -254,11 +251,3 @@ void loop() {
     readPidPotsAndUpdateTuning(&boostValvePressurePID, &PressureKp, &PressureKi, &PressureKd);
   }
 }
-
-/*
-TODO:
-- Implement periodic check for error conditions, set a flag which can be passed back to main controller and alarm sounded
-- On device boot, if the engine is running (detected without comms from master ideally), fail to wide open valve ... do not even perform calibration etc.
-  This is in case watchdog fires and we reboot the boost controller. We don't want to perform calibration at WOT say.
-- Ensure that the atmospheric check is within sensible bounds, ideally engine confirmed off !! Can setup wait until getting serial data ??
-*/

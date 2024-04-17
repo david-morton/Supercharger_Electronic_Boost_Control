@@ -37,5 +37,21 @@ Command ID's in use are as below. The master is the 'main' car module which driv
 # Technical Notes
 - Words here later
 
-# Todo
-- Words here later
+### Boost Control Rules / Behaviour
+The following conditions cause the valve to immediately drive to 100% open (not relying on the return spring)
+- Clutch pressed (sent over serial from master)
+- Neutral gear detected (sent over serial from master)
+- RPM is less than 1000
+- Speed is less than 2 (essentially stationary)
+
+The following conditions cause the valve to return to 100% open using the return spring only
+- Critical fault detected
+  - No serial comms from master
+  - Overboost for more than allowed duration
+
+### Todo List
+- Perform checks of valve travel limits which were determined and fire critical failure if no good (not enough spread of readings)
+- Ensure we can reliably detect if car is on when performing setup. Could cause calibration to be way off. Critical fail if not confident.
+- Check calibration of atmospheric pressure value when performing setup. Critical fail if not happy.
+- Think about driving conditions we will encounter, like coasting down a hill at say 3000rpm with throttle closed. Do we look at MAP sensor measuring vacuum in the manifold and compare against pressure in plumbing ?
+- We will really need to account for manifold vacuum so we don't cause compressor to work against a dead head ... do we have any / much vacuum on VQ37 ?

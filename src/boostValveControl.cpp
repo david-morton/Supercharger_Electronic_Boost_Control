@@ -7,27 +7,6 @@
    VARIABLES: General use / functional
    ====================================================================== */
 float boostValveOpenPercentage;
-int boostValvePositionReading;
-
-/* ======================================================================
-   FUNCTION: Get current boost valve blade position
-   ====================================================================== */
-int getBoostValvePositionReadingRaw(const byte *signalPin) {
-  const int numReadings = 20; // Number of readings to average
-  int totalReadings = 0;
-
-  // Take multiple readings and sum them up as fast as we can
-  for (int i = 0; i < numReadings; i++) {
-    // Read sensor position from analog pin
-    boostValvePositionReading = analogRead(*signalPin);
-    totalReadings += boostValvePositionReading;
-  }
-
-  // Calculate average of the readings
-  int averageReading = totalReadings / numReadings;
-
-  return averageReading;
-}
 
 /* ======================================================================
    FUNCTION: Determine current boost valve position percentage

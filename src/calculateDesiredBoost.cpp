@@ -43,6 +43,3 @@ float calculateDesiredBoostPsi(float speed, int rpm, int gear, bool clutchPresse
   return 0.0;
   DEBUG_BOOST("Boost target set to 0psi as out of range gear provided");
 }
-
-// TODO: Do we need to account for vacuum here when coasting down hill in gear say ? Should we look to capture pedal position ?
-// Do we need to measure pressure in the charge piping as well as manifold ?
