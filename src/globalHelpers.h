@@ -77,7 +77,7 @@ extern unsigned long lastSuccessfulCommandId1Processed;
    FUNCTION PROTOTYPES
    ====================================================================== */
 void checkAndSetFaultConditions(double *, double *);
-float calculatePsiFromRaw(int);
+float calculatePsiFromRaw(float);
 int getAveragedAnaloguePinReading(byte pin, int samples, int delayMs);
 
 #endif

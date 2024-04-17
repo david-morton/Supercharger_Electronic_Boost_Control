@@ -19,54 +19,25 @@ const byte pidPinProportional = A3;
 const byte pidPinIntegral = A4;
 const byte pidPinDerivative = A5;
 
-double pidLiveValueProportional;
-double pidLiveValueIntegral;
-double pidLiveValueDerivative;
-
 int pidRangeMaxProportional = 50;
 int pidRangeMaxIntegral = 10;
 int pidRangeMaxDerivative = 5;
 
-ptScheduler ptReadPidPotsAndUpdateValues = ptScheduler(PT_TIME_100MS);
+ptScheduler ptReadPidPotsAndUpdateTuning = ptScheduler(PT_TIME_100MS);
 
-// Define hysteresis values for each potentiometer
-const float hysteresisProportional = 1.0; // Adjust as needed
-const float hysteresisIntegral = 0.1;     // Adjust as needed
-const float hysteresisDerivative = 0.1;   // Adjust as needed
-
-// Define last potentiometer values
-int lastPidPotProportionalRaw = 0;
-int lastPidPotIntegralRaw = 0;
-int lastPidPotDerivativeRaw = 0;
-
-void readPidPotsAndUpdateValues(PID *pidMotor, double *pidLiveValueProportional, double *pidLiveValueIntegral, double *pidLiveValueDerivative) {
+void readPidPotsAndUpdateTuning(PID *pidMotor, double *pidLiveValueProportional, double *pidLiveValueIntegral, double *pidLiveValueDerivative) {
   int pidPotProportionalRaw = getAveragedAnaloguePinReading(pidPinProportional, 10, 0);
   int pidPotIntegralRaw = getAveragedAnaloguePinReading(pidPinIntegral, 10, 0);
   int pidPotDerivativeRaw = getAveragedAnaloguePinReading(pidPinDerivative, 10, 0);
 
-  // Check if any of the potentiometer values have changed with hysteresis
-  if (abs(pidPotProportionalRaw - lastPidPotProportionalRaw) > hysteresisProportional ||
-      abs(pidPotIntegralRaw - lastPidPotIntegralRaw) > hysteresisIntegral ||
-      abs(pidPotDerivativeRaw - lastPidPotDerivativeRaw) > hysteresisDerivative) {
+  // Adjust the mapping for higher precision
+  double factor = 100.0;
 
-    // Update last potentiometer values
-    lastPidPotProportionalRaw = pidPotProportionalRaw;
-    lastPidPotIntegralRaw = pidPotIntegralRaw;
-    lastPidPotDerivativeRaw = pidPotDerivativeRaw;
+  *pidLiveValueProportional = map(pidPotProportionalRaw, 0, 1023, pidRangeMaxProportional, 0);
+  *pidLiveValueIntegral = map(pidPotIntegralRaw, 0, 1023, pidRangeMaxIntegral * factor, 0) / factor;
+  *pidLiveValueDerivative = map(pidPotDerivativeRaw, 0, 1023, pidRangeMaxDerivative * factor, 0) / factor;
 
-    // Adjust the mapping for higher precision
-    double factor = 100.0;
-
-    *pidLiveValueProportional = map(pidPotProportionalRaw, 0, 1023, pidRangeMaxProportional, 0);
-    *pidLiveValueIntegral = map(pidPotIntegralRaw, 0, 1023, pidRangeMaxIntegral * factor, 0) / factor;
-    *pidLiveValueDerivative = map(pidPotDerivativeRaw, 0, 1023, pidRangeMaxDerivative * factor, 0) / factor;
-
-    pidMotor->SetTunings(*pidLiveValueProportional, *pidLiveValueIntegral, *pidLiveValueDerivative);
-
-    DEBUG_PID("Proportional value: " + String(*pidLiveValueProportional, 2) +
-              " Integral value: " + String(*pidLiveValueIntegral, 2) +
-              " Derivative value: " + String(*pidLiveValueDerivative, 2));
-  }
+  pidMotor->SetTunings(*pidLiveValueProportional, *pidLiveValueIntegral, *pidLiveValueDerivative);
 }
 
 /* ======================================================================
@@ -90,9 +61,13 @@ const byte manifoldPressureSensorSignalPin = A15;
 /* ======================================================================
    VARIABLES: PID Tuning parameters for valve motor control
    ====================================================================== */
-double Kp = 30.0; // Proportional term      30
-double Ki = 0.0;  // Integral term          7
-double Kd = 0.0;  // Derivative term        2
+double PressureKp = 30.0; // Proportional term      30
+double PressureKi = 0.0;  // Integral term          7
+double PressureKd = 0.0;  // Derivative term        2
+
+double PositionKp = 2.5; // Proportional term     2.5
+double PositionKi = 5.0; // Integral term        5.0
+double PositionKd = 0.0; // Derivative term      0.0
 
 const int maximumReverseMotorSpeed = -250; // This is also hard coded in the setBoostValveTravelLimits function
 const int maximumForwardMotorSpeed = 250;  // This is also hard coded in the setBoostValveTravelLimits function
@@ -103,11 +78,14 @@ const int maximumForwardMotorSpeed = 250;  // This is also hard coded in the set
 double currentBoostValveMotorSpeed = 0;
 double currentManifoldPressureAboveAtmosphericPsi;
 double currentTargetBoostPsi;
-float currentBoostValveOpenPercentage;
+double currentBoostValveOpenPercentage;
 float currentManifoldPressureRaw;
-int currentManifoldTempRaw;
+int currentManifoldTempRaw = 0;
+double currentTargetBoostValveOpenPercentage = 100.0;
 
-int manifoldPressureAtmosphericOffsetRaw;
+float valveControlPositionToPidTransitionFactor = 0.8;
+
+float manifoldPressureAtmosphericOffsetRaw;
 float manifoldPressureAtmosphericOffsetPsi;
 
 int currentBoostValvePositionReadingRaw;
@@ -120,26 +98,29 @@ int currentVehicleRpm = 0;     // Will be updated via serial comms from master
 bool clutchPressed = true;     // Will be updated via serial comms from master
 
 /* ======================================================================
-   OBJECTS: Configure the motor driver board and PID object
+   OBJECTS: Configure the motor driver board and PID objects
    ====================================================================== */
 CytronMD boostValveMotorDriver(PWM_DIR, 9, 8);
-// PID boostValvePID(&currentManifoldPressureAboveAtmosphericPsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, Kp, Ki, Kd, REVERSE);
-PID boostValvePID(&currentManifoldPressureAboveAtmosphericPsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, pidLiveValueProportional, pidLiveValueIntegral, pidLiveValueDerivative, REVERSE);
+PID boostValvePressurePID(&currentManifoldPressureAboveAtmosphericPsi, &currentBoostValveMotorSpeed, &currentTargetBoostPsi, PressureKp, PressureKi, PressureKd, REVERSE);
+PID boostValvePositionPID(&currentBoostValveOpenPercentage, &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage, PositionKp, PositionKi, PositionKd, DIRECT);
 
 /* ======================================================================
    OBJECTS: Pretty tiny scheduler objects / tasks
    ====================================================================== */
-ptScheduler ptGetBoostValveOpenPercentage = ptScheduler(PT_TIME_100MS);
+// High frequency tasks
+ptScheduler ptCalculatePidAndDriveValve = ptScheduler(PT_TIME_10MS);
+ptScheduler ptGetBoostValveFeedbackPosition = ptScheduler(PT_TIME_10MS);
 ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_50MS);
-ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_200MS);
-ptScheduler ptCalculatePidAndDriveValve = ptScheduler(PT_TIME_20MS);
-ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_5MS);
-ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_1S);
-ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
-ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
-ptScheduler ptGetBoostValvePositionReadingRaw = ptScheduler(PT_TIME_20MS);
+ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_10MS);
 
-ptScheduler ptOutputTargetAndCurrentBoostDebug = ptScheduler(PT_TIME_1S);
+// Medium frequency tasks
+ptScheduler ptCalculateDesiredBoostPsi = ptScheduler(PT_TIME_200MS);
+ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
+ptScheduler ptOutputTargetAndCurrentBoostDebug = ptScheduler(PT_TIME_500MS);
+
+// Low frequency tasks
+ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_5S);
+ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
 
 /* ======================================================================
    SETUP
@@ -160,35 +141,34 @@ void setup() {
   SERIAL_PORT_MONITOR.print(manifoldPressureAtmosphericOffsetPsi);
   SERIAL_PORT_MONITOR.println("psi\n");
 
-  // Calibrate travel limits of boost valve
+  // Calibrate travel limits of boost valve (drive against full open / closed and record readings)
   setBoostValveTravelLimits(&boostValveMotorDriver, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
 
   // TODO: Perform checks of travel limits which were determined and don't hold any boost if out of range
   // ie: There is not enough voltage separation between them. Write to some error buffer to output ?
 
-  // Initialize the PID controller and set the motor speed limits to something sensible
-  boostValvePID.SetMode(AUTOMATIC);
-  boostValvePID.SetOutputLimits(maximumReverseMotorSpeed, maximumForwardMotorSpeed);
+  // Initialize the PID controller and set the motor speed limits
+  boostValvePressurePID.SetMode(AUTOMATIC);
+  boostValvePressurePID.SetOutputLimits(maximumReverseMotorSpeed, maximumForwardMotorSpeed);
+
+  boostValvePositionPID.SetMode(AUTOMATIC);
+  boostValvePositionPID.SetOutputLimits(maximumReverseMotorSpeed, maximumForwardMotorSpeed);
 }
 
 /* ======================================================================
    MAIN LOOP
    ====================================================================== */
 void loop() {
-  // Get the current boost valve blade position as a raw reading
-  if (ptGetBoostValvePositionReadingRaw.call()) {
+  // Get the current boost valve blade position as a raw reading and update percentage
+  if (ptGetBoostValveFeedbackPosition.call()) {
     currentBoostValvePositionReadingRaw = getBoostValvePositionReadingRaw(&boostValvePositionSignalPin);
-  }
-
-  // Get the current blade position open percentage
-  if (ptGetBoostValveOpenPercentage.call()) {
     currentBoostValveOpenPercentage = getBoostValveOpenPercentage(&currentBoostValvePositionReadingRaw, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
   }
 
   // Get the current manifold pressure as raw sensor reading (0-1023) and convert to psi above atmospheric
   if (ptGetManifoldPressure.call()) {
     currentManifoldPressureRaw = getAveragedAnaloguePinReading(manifoldPressureSensorSignalPin, 20, 0);
-    currentManifoldPressureAboveAtmosphericPsi = calculatePsiFromRaw(currentManifoldPressureRaw) - manifoldPressureAtmosphericOffsetPsi;
+    currentManifoldPressureAboveAtmosphericPsi = calculatePsiFromRaw(currentManifoldPressureRaw - manifoldPressureAtmosphericOffsetRaw);
   }
 
   // Calculate serial message quality stats, and set alarm condition if they are bad
@@ -239,23 +219,39 @@ void loop() {
     }
   }
 
-  // Update PID valve control to drive to that target unless critical alarm is set in which case, stop the motor and let the sprint open the valve
+  // Update PID valve control to drive to target boost or position as needed
+  // If critical alarm is set, stop the motor and let the return spring open the valve to 'fail safe'
   if (ptCalculatePidAndDriveValve.call()) {
     if (globalAlarmCritical) {
-      boostValveMotorDriver.setSpeed(0);
-    } else {
-      driveBoostValveToTargetByPressurePid(&boostValveMotorDriver, &boostValvePID, &currentBoostValveMotorSpeed, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw, &currentBoostValvePositionReadingRaw);
+      boostValveMotorDriver.setSpeed(0); // TODO: Look at actively driving valve open then stopping motor
+    } else if (currentTargetBoostPsi == 0) {
+      currentTargetBoostValveOpenPercentage = 100; // Fully open, release the boost
+      driveBoostValveToTargetByOpenPercentagePid(&boostValveMotorDriver, &boostValvePositionPID, &currentBoostValveOpenPercentage,
+                                                 &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage);
+    } else if (currentTargetBoostPsi > 0) {
+      if (currentManifoldPressureAboveAtmosphericPsi < (currentTargetBoostPsi * valveControlPositionToPidTransitionFactor)) {
+        currentTargetBoostValveOpenPercentage = 0; // Fully closed, hold the boost until we are closer to target
+        driveBoostValveToTargetByOpenPercentagePid(&boostValveMotorDriver, &boostValvePositionPID, &currentBoostValveOpenPercentage,
+                                                   &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage);
+      } else {
+        driveBoostValveToTargetByPressurePid(&boostValveMotorDriver, &boostValvePressurePID, &currentBoostValveMotorSpeed,
+                                             &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw,
+                                             &currentBoostValvePositionReadingRaw);
+      }
     }
   }
 
   // Some temporary debug that may remain in place
   if (ptOutputTargetAndCurrentBoostDebug.call()) {
-    DEBUG_BOOST("Target boost is " + String(currentTargetBoostPsi) + "psi and current is " + String(currentManifoldPressureAboveAtmosphericPsi) + "psi");
+    DEBUG_PID("Target boost is " + String(currentTargetBoostPsi) + "psi and current is " + String(currentManifoldPressureAboveAtmosphericPsi) + "psi");
+    // THIS NEEDS TO BE CHANGED BACK TO DEBUG_BOOST
+    DEBUG_PID("Proportional value: " + String(PressureKp, 2) + " Integral value: " + String(PressureKi, 2) + " Derivative value: " + String(PressureKd, 2) + "\n");
+    DEBUG_PID("Current open percentage: " + String(currentBoostValveOpenPercentage, 2) + " Target open percentage: " + String(currentTargetBoostValveOpenPercentage, 2) + "\n");
   }
 
   // Used for tuning PID values using potentiometers to adjust P, I and D values
-  if (ptReadPidPotsAndUpdateValues.call()) {
-    readPidPotsAndUpdateValues(&boostValvePID, &pidLiveValueProportional, &pidLiveValueIntegral, &pidLiveValueDerivative);
+  if (ptReadPidPotsAndUpdateTuning.call()) {
+    readPidPotsAndUpdateTuning(&boostValvePressurePID, &PressureKp, &PressureKi, &PressureKd);
   }
 }
 

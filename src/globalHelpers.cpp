@@ -50,9 +50,10 @@ const float boschMagicNumber1 = 5.4 / 280;  // 0.0192857142857143
 const float boschMagicNumber2 = 0.85 / 280; // 0.0030357142857143
 const float sensorSupplyVoltage = 5.0;      // Included for clarity and in case we can't supply exactly 5V
 
-float calculatePsiFromRaw(int currentManifoldPressureRaw) {
-  float sensorCurrentVoltage = (currentManifoldPressureRaw / 1023) * 5;
-  float pressureKpa = (sensorCurrentVoltage - boschMagicNumber1 * sensorSupplyVoltage) / (boschMagicNumber2 * sensorSupplyVoltage);
+float calculatePsiFromRaw(float sensorReadingRaw) {
+  // There is an oddity here in that when passing in 0 as a raw reading we do NOT get 0 as output
+  float sensorVoltage = (sensorReadingRaw / 1023) * 5;
+  float pressureKpa = (sensorVoltage - boschMagicNumber1 * sensorSupplyVoltage) / (boschMagicNumber2 * sensorSupplyVoltage);
   return pressureKpa * 0.145038; // Convert kPa to PSI
 }
 
