@@ -9,6 +9,14 @@ The hardware used for my particular appliation is:
 # Implementation Detail & Architecture
 - Words here later
 
+# PID Tuning
+This is a wacky black art in this context. Copied the below tips from a really great illustrative video:
+https://www.youtube.com/watch?v=qKy98Cbcltw
+
+P: if you’re not where you want to be, get there.
+I: if you haven’t been where you want to be for a long time, get there faster
+D: if you’re getting close to where you want to be, slow down.
+
 # Serial Protocol
 This section defines how the serial comms between master and slave work; and defines the message types and structures.
 

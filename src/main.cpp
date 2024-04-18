@@ -48,7 +48,7 @@ bool debugSerialSend = false;
 bool debugValveControl = false;
 bool debugBoost = false;
 bool debugGeneral = false;
-bool debugPid = true;
+bool debugPid = false;
 
 bool reportSerialMessageStats = false;
 
@@ -69,8 +69,8 @@ double PositionKp = 2.5; // Proportional term     2.5
 double PositionKi = 5.0; // Integral term        5.0
 double PositionKd = 0.0; // Derivative term      0.0
 
-const int maximumReverseMotorSpeed = -250; // This is also hard coded in the setBoostValveTravelLimits function
-const int maximumForwardMotorSpeed = 250;  // This is also hard coded in the setBoostValveTravelLimits function
+const int maximumReverseMotorSpeed = -100; // This is also hard coded in the setBoostValveTravelLimits function
+const int maximumForwardMotorSpeed = 100;  // This is also hard coded in the setBoostValveTravelLimits function
 
 /* ======================================================================
    VARIABLES: General use / functional
@@ -83,10 +83,13 @@ float currentManifoldPressureRaw;
 int currentManifoldTempRaw = 0;
 double currentTargetBoostValveOpenPercentage = 100.0;
 
-float valveControlPositionToPidTransitionFactor = 0.8;
+float valveControlPositionToPidTransitionFactor = 0.7;
 
 float manifoldPressureAtmosphericOffsetRaw;
 float manifoldPressureAtmosphericOffsetPsi;
+
+bool usingPressureControl;
+bool usingPositionControl;
 
 int currentBoostValvePositionReadingRaw;
 int boostValvePositionReadingMinimumRaw; // Throttle blade closed, hold all of the boost
@@ -96,6 +99,9 @@ int currentVehicleGear = 0;    // Will be updated via serial comms from master
 float currentVehicleSpeed = 0; // Will be updated via serial comms from master
 int currentVehicleRpm = 0;     // Will be updated via serial comms from master
 bool clutchPressed = true;     // Will be updated via serial comms from master
+
+unsigned long arduinoLoopExecutionCount = 0;
+unsigned long arduinoLoopExecutionPreviousExecutionMillis;
 
 /* ======================================================================
    OBJECTS: Configure the motor driver board and PID objects
@@ -121,6 +127,7 @@ ptScheduler ptOutputTargetAndCurrentBoostDebug = ptScheduler(PT_TIME_500MS);
 // Low frequency tasks
 ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_5S);
 ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
+ptScheduler ptMonitorArduinoExecutionTime = ptScheduler(PT_TIME_5S);
 
 /* ======================================================================
    SETUP
@@ -223,14 +230,32 @@ void loop() {
       boostValveMotorDriver.setSpeed(0);
     } else if (currentTargetBoostPsi == 0) {
       currentTargetBoostValveOpenPercentage = 100; // Fully open, release the boost
+      // Some debug for when switching control modes
+      if (usingPressureControl == true) {
+        usingPositionControl = true;
+        usingPressureControl = false;
+        DEBUG_PID("Switching control mode to POSITIONAL");
+      }
       driveBoostValveToTargetByOpenPercentagePid(&boostValveMotorDriver, &boostValvePositionPID, &currentBoostValveOpenPercentage,
                                                  &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage);
     } else if (currentTargetBoostPsi > 0) {
       if (currentManifoldPressureAboveAtmosphericPsi < (currentTargetBoostPsi * valveControlPositionToPidTransitionFactor)) {
         currentTargetBoostValveOpenPercentage = 0; // Fully closed, hold the boost until we are closer to target
+        // Some debug for when switching control modes
+        if (usingPressureControl == true) {
+          usingPositionControl = true;
+          usingPressureControl = false;
+          DEBUG_PID("Switching control mode to POSITIONAL");
+        }
         driveBoostValveToTargetByOpenPercentagePid(&boostValveMotorDriver, &boostValvePositionPID, &currentBoostValveOpenPercentage,
                                                    &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage);
       } else {
+        // Some debug for when switching control modes
+        if (usingPositionControl == true) {
+          usingPositionControl = false;
+          usingPressureControl = true;
+          DEBUG_PID("Switching control mode to PRESSURE");
+        }
         driveBoostValveToTargetByPressurePid(&boostValveMotorDriver, &boostValvePressurePID, &currentBoostValveMotorSpeed,
                                              &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw,
                                              &currentBoostValvePositionReadingRaw);
@@ -249,5 +274,22 @@ void loop() {
   // Used for tuning PID values using potentiometers to adjust P, I and D values
   if (ptReadPidPotsAndUpdateTuning.call()) {
     readPidPotsAndUpdateTuning(&boostValvePressurePID, &PressureKp, &PressureKi, &PressureKd);
+  }
+
+  // Update counter for execution frequency metrics
+  if (millis() > 10000) {
+    arduinoLoopExecutionCount++;
+  }
+
+  if (ptMonitorArduinoExecutionTime.call() && millis() > 9000) {
+    float loopFrequencyHz = (arduinoLoopExecutionCount / ((millis() - arduinoLoopExecutionPreviousExecutionMillis) / 1000));
+    float loopExecutionMs = (millis() - arduinoLoopExecutionPreviousExecutionMillis) / arduinoLoopExecutionCount;
+    SERIAL_PORT_MONITOR.print("Loop execution frequency (Hz): ");
+    SERIAL_PORT_MONITOR.print(loopFrequencyHz);
+    SERIAL_PORT_MONITOR.print(" or every ");
+    SERIAL_PORT_MONITOR.print(loopExecutionMs);
+    SERIAL_PORT_MONITOR.println("ms");
+    arduinoLoopExecutionCount = 1;
+    arduinoLoopExecutionPreviousExecutionMillis = millis();
   }
 }
