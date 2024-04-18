@@ -16,12 +16,13 @@ This section defines how the serial comms between master and slave work; and def
 - Message boundaries are indicated by < and > symbols for start and end respectively
 - We cater for multiple fields by being comma delimited
 - A basic XOR checksum is used so we can discard (most) corrupt messages
+- The code caters for messages which are only partially received in a particular call to the function to read from the serial buffer
 
 ### Message Types
 Currently we only have a few message types supported (described from master perspective)
-- Push current readings for speed, RPM, gear and clutch pedal status
-- Request current readings for boost pressure and valve open percentage
-- Request error status
+- Request current readings for boost controller (this code base) like current pressure, valve open percentage and error status
+- Request current readings for speed, RPM, gear and clutch pedal status from master to this boost controller
+- Respond to the masters request for info from boost controller (this code base)
 
 ### Example Messages
 The standard message format is as below. The number and type of the data fields is unique to each commandId.
@@ -30,7 +31,7 @@ The standard message format is as below. The number and type of the data fields 
 Command ID's in use are as below. The master is the 'main' car module which drives the dashboard via CAN and the slave is the boost controller who's code is in this repo.
 | Command ID  | Direction       | Data Fields                                                     | Description                                       |
 | ----------- | --------------- | --------------------------------------------------------------- | ------------------------------------------------- |
-| 0           | Master to slave | -                                                               | Request current data from boost controller        |
+| 0           | Master to slave | salt (allows for checksum calculation)                          | Request current data from boost controller        |
 | 1           | Master to slave | currentRpm,currentSpeed,currentGear,clutchPressed               | Push current data from master to boost controller |
 | 2           | Slave to master | errorStatus,currentBoost,currentTemp,currentValveOpenPercentage | Response to command ID 0                          |
 
@@ -38,7 +39,7 @@ Command ID's in use are as below. The master is the 'main' car module which driv
 - Words here later
 
 ### Boost Control Rules / Behaviour
-The following conditions cause the valve to immediately drive to 100% open (not relying on the return spring)
+The following conditions cause the valve to immediately drive to 100% open (not relying on the return spring alone)
 - Clutch pressed (sent over serial from master)
 - Neutral gear detected (sent over serial from master)
 - RPM is less than 1000
