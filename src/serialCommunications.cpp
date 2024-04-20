@@ -223,11 +223,11 @@ const char *serialGetIncomingMessage() {
 /* ======================================================================
    FUNCTION: Send response to command ID 0 from master (response message is command ID 2)
    ====================================================================== */
-void serialSendCommandId0Response(bool alarmCritical, float targetBoostPsi, float manifoldPressurePsi, int manifoldTemperatureRaw) {
-  // Calculate human friendly params to send back to master
-  int manifoldTempCelcius = 0;
+void serialSendCommandId0Response(bool alarmCritical, float targetBoostKpa, float manifoldPressureKpa, int manifoldTempCelcius,
+                                  float intakePressureKpa, int intakeTempCelcius, double valveOpenPercentage) {
   // Create the message without the start and end markers
-  String message = "2," + String(alarmCritical ? "1" : "0") + "," + String(targetBoostPsi) + "," + String(manifoldPressurePsi) + "," + String(manifoldTempCelcius);
+  String message = "2," + String(alarmCritical ? "1" : "0") + "," + String(targetBoostKpa) + "," + String(manifoldPressureKpa) + "," +
+                   String(manifoldTempCelcius) + "," + String(intakePressureKpa) + "," + String(intakeTempCelcius) + "," + String(valveOpenPercentage);
 
   // Calculate XOR checksum
   byte checksum = 0;

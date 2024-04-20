@@ -13,6 +13,15 @@ extern bool debugBoost;
 extern bool debugGeneral;
 extern bool debugPid;
 
+/* ======================================================================
+   HELPERS: Variables to determine alarm status
+   ====================================================================== */
+extern bool globalAlarmCritical;
+extern unsigned long lastSuccessfulCommandId1Processed;
+
+/* ======================================================================
+   HELPERS: Debug output definitions
+   ====================================================================== */
 // Define the DEBUG_SERIAL_RECEIVE macro
 #define DEBUG_SERIAL_RECEIVE(message)                       \
   do {                                                      \
@@ -68,16 +77,11 @@ extern bool debugPid;
   } while (0)
 
 /* ======================================================================
-   HELPERS: Variables to determine alarm status
-   ====================================================================== */
-extern bool globalAlarmCritical;
-extern unsigned long lastSuccessfulCommandId1Processed;
-
-/* ======================================================================
    FUNCTION PROTOTYPES
    ====================================================================== */
 void checkAndSetFaultConditions(double *, double *);
-float calculatePsiFromRaw(float);
+float calculateBosch3BarKpaFromRaw(float);
 int getAveragedAnaloguePinReading(byte pin, int samples, int delayMs);
+void reportArduinoLoopRate(unsigned long *);
 
 #endif

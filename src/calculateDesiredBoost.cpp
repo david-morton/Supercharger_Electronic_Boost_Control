@@ -6,27 +6,25 @@
    ====================================================================== */
 struct BoostByGear {
   int gear;
-  int psi;
+  int kPa;
 };
 
 /* ======================================================================
    VARIABLES: General use / functional
    ====================================================================== */
-float desiredBoostPsi = 0.0;
-
 const BoostByGear boostByGearData[] = {
     {0, 0}, // First value is gear, second is boost maximum in PSI. Gear 0 is neutral
-    {1, 1},
-    {2, 2},
-    {3, 3},
-    {4, 4},
-    {5, 5},
-    {6, 6}};
+    {1, 20},
+    {2, 30},
+    {3, 30}, // 4psi
+    {4, 55},
+    {5, 55},
+    {6, 55}}; // 8psi
 
 /* ======================================================================
    FUNCTION: Determine desired boost level
    ====================================================================== */
-float calculateDesiredBoostPsi(float speed, int rpm, int gear, bool clutchPressed) {
+float calculateDesiredBoostKpa(float speed, int rpm, int gear, bool clutchPressed) {
   DEBUG_BOOST("Calculating boost based on speed " + String(speed) + "kmh, rpm " + String(rpm) + ", gear " + String(gear) + " and clutch " + String(clutchPressed));
   if (speed <= 2 || gear == 0 || clutchPressed == true || rpm < 1000) {
     DEBUG_BOOST("Boost target set to 0psi due to conditional match (gear, speed, clutch etc)");
@@ -35,8 +33,8 @@ float calculateDesiredBoostPsi(float speed, int rpm, int gear, bool clutchPresse
     // Lookup boost by gear
     for (const auto &boostPair : boostByGearData) {
       if (boostPair.gear == gear) {
-        DEBUG_BOOST("Boost target determined as " + String(boostPair.psi) + "psi");
-        return boostPair.psi;
+        DEBUG_BOOST("Boost target determined as " + String(boostPair.kPa) + "kPa");
+        return boostPair.kPa;
       }
     }
   }

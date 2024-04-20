@@ -6,6 +6,6 @@
 /* ======================================================================
    FUNCTION PROTOTYPES
    ====================================================================== */
-float calculateDesiredBoostPsi(float, int, int, bool);
+float calculateDesiredBoostKpa(float, int, int, bool);
 
 #endif

@@ -64,3 +64,4 @@ The following conditions cause the valve to return to 100% open using the return
 - Check calibration of atmospheric pressure value when performing setup. Critical fail if not happy.
 - Think about driving conditions we will encounter, like coasting down a hill at say 3000rpm with throttle closed. Do we look at MAP sensor measuring vacuum in the manifold and compare against pressure in plumbing ?
 - We will really need to account for manifold vacuum so we don't cause compressor to work against a dead head ... do we have any / much vacuum on VQ37 ?
+- Compare both pressure sensors during setup and ensure they are within 5% of each other as a check
