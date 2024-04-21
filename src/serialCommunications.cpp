@@ -36,26 +36,26 @@ void serialCalculateMessageQualityStats() {
    FUNCTION: Output serial message stats
    ====================================================================== */
 void serialReportMessageQualityStats() {
-  SERIAL_PORT_MONITOR.print("\nTotal messages received: ");
-  SERIAL_PORT_MONITOR.println(messagesReceived);
+  Serial.print("\nTotal messages received: ");
+  Serial.println(messagesReceived);
 
-  SERIAL_PORT_MONITOR.print("Partial messages received: ");
-  SERIAL_PORT_MONITOR.print(partialMessagesReceived);
-  SERIAL_PORT_MONITOR.print(" (");
-  SERIAL_PORT_MONITOR.print(messageStatPartialPercentage);
-  SERIAL_PORT_MONITOR.println("%)");
+  Serial.print("Partial messages received: ");
+  Serial.print(partialMessagesReceived);
+  Serial.print(" (");
+  Serial.print(messageStatPartialPercentage);
+  Serial.println("%)");
 
-  SERIAL_PORT_MONITOR.print("Messages with bad checksum: ");
-  SERIAL_PORT_MONITOR.print(messagesWithBadChecksum);
-  SERIAL_PORT_MONITOR.print(" (");
-  SERIAL_PORT_MONITOR.print(messageStatBadchecksumPercentage);
-  SERIAL_PORT_MONITOR.println("%)");
+  Serial.print("Messages with bad checksum: ");
+  Serial.print(messagesWithBadChecksum);
+  Serial.print(" (");
+  Serial.print(messageStatBadchecksumPercentage);
+  Serial.println("%)");
 
-  SERIAL_PORT_MONITOR.print("Corrupt messages: ");
-  SERIAL_PORT_MONITOR.print(corruptMessages);
-  SERIAL_PORT_MONITOR.print(" (");
-  SERIAL_PORT_MONITOR.print(messageStatCorruptPercentage);
-  SERIAL_PORT_MONITOR.println("%)\n");
+  Serial.print("Corrupt messages: ");
+  Serial.print(corruptMessages);
+  Serial.print(" (");
+  Serial.print(messageStatCorruptPercentage);
+  Serial.println("%)\n");
 }
 
 /* ======================================================================
@@ -149,8 +149,8 @@ const char *serialGetIncomingMessage() {
 
   // Throw away any characters until we get a message start or there is no more data, but only if we are not appending to a previous partial message
   if (partialMessagePresent == false) {
-    while (SERIAL_PORT_HARDWARE1.peek() != '<' && SERIAL_PORT_HARDWARE1.available() > 0) {
-      SERIAL_PORT_HARDWARE1.read();
+    while (Serial1.peek() != '<' && Serial1.available() > 0) {
+      Serial1.read();
     }
   } else if (partialMessagePresent == true) { // If we are appending to a previous partial message, load it in before we start reading new characters
     strcpy(message, partialMessage);
@@ -160,8 +160,8 @@ const char *serialGetIncomingMessage() {
   }
 
   // Read characters from Serial until end marker '>' is received
-  while (SERIAL_PORT_HARDWARE1.available() > 0) {
-    char incomingChar = SERIAL_PORT_HARDWARE1.read();
+  while (Serial1.available() > 0) {
+    char incomingChar = Serial1.read();
 
     if (partialMessagePresent == true) {
       DEBUG_SERIAL_RECEIVE("Read in character: " + String(incomingChar));
@@ -207,7 +207,7 @@ const char *serialGetIncomingMessage() {
         partialMessage[0] = '\0';
         return returnMessage;
       }
-    } else if (SERIAL_PORT_HARDWARE1.available() == 0) { // There is no more content in the buffer, and end of message not received. Store message content for appending to later
+    } else if (Serial1.available() == 0) { // There is no more content in the buffer, and end of message not received. Store message content for appending to later
       partialMessagePresent = true;
       partialMessagesReceived++;
       strcpy(partialMessage, message);
@@ -239,6 +239,6 @@ void serialSendCommandId0Response(bool alarmCritical, float targetBoostKpa, floa
   String finalMessage = "<" + message + "," + String(checksum) + ">";
 
   // Send the message
-  SERIAL_PORT_HARDWARE1.print(finalMessage);
+  Serial1.print(finalMessage);
   DEBUG_SERIAL_SEND("Sending " + String(finalMessage));
 }

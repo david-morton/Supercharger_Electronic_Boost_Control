@@ -83,11 +83,11 @@ unsigned long arduinoLoopExecutionPreviousExecutionMillis;
 void reportArduinoLoopRate(unsigned long *loopCount) {
   float loopFrequencyHz = (*loopCount / ((millis() - arduinoLoopExecutionPreviousExecutionMillis) / 1000));
   float loopExecutionMs = (millis() - arduinoLoopExecutionPreviousExecutionMillis) / *loopCount;
-  SERIAL_PORT_MONITOR.print("Loop execution frequency (Hz): ");
-  SERIAL_PORT_MONITOR.print(loopFrequencyHz);
-  SERIAL_PORT_MONITOR.print(" or every ");
-  SERIAL_PORT_MONITOR.print(loopExecutionMs);
-  SERIAL_PORT_MONITOR.println("ms");
+  Serial.print("Loop execution frequency (Hz): ");
+  Serial.print(loopFrequencyHz);
+  Serial.print(" or every ");
+  Serial.print(loopExecutionMs);
+  Serial.println("ms");
   *loopCount = 1;
   arduinoLoopExecutionPreviousExecutionMillis = millis();
 }

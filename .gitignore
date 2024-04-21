@@ -6,3 +6,4 @@
 *.code-workspace
 .DS_Store
 *.log
+arduinoSecrets.h

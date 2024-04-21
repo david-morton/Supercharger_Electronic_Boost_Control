@@ -1,9 +1,11 @@
 #include "CytronMotorDriver.h"
 #include "PID_v1.h"
+#include "pwm.h"
 #include <Arduino.h>
 #include <Wire.h>
 #include <ptScheduler.h>
 
+#include "arduinoSecrets.h"
 #include "boostValveControl.h"
 #include "boostValveSetup.h"
 #include "calculateDesiredBoost.h"
@@ -11,6 +13,7 @@
 #include "sensorsSendReceive.h"
 #include "serialCommunications.h"
 #include "serialMessageProcessing.h"
+#include "wifiHelpers.h"
 
 /* ======================================================================
    VARIABLES: Temporary PID debug items, used with 3 potentiometers
@@ -41,6 +44,13 @@ void readPidPotsAndUpdateTuning(PID *pidMotor, double *pidLiveValueProportional,
 }
 
 /* ======================================================================
+   VARIABLES: Major functional area toggles
+   ====================================================================== */
+bool enableWifi = true;
+bool enablePotPidTuning = true;
+bool enableMqttPublish = true;
+
+/* ======================================================================
    VARIABLES: Debug and stat output
    ====================================================================== */
 bool debugSerialReceive = false;
@@ -57,9 +67,9 @@ bool reportArduinoLoopStats = false;
 /* ======================================================================
    VARIABLES: Pin constants
    ====================================================================== */
-const byte boostValvePositionSignalPin = A14;
-const byte manifoldTmapSensorPressureSignalPin = A15;
-const byte intakeTmapSensorPressureSignalPin = A13;
+const byte boostValvePositionSignalPin = A0;
+const byte manifoldTmapSensorPressureSignalPin = A1;
+const byte intakeTmapSensorPressureSignalPin = A2;
 
 /* ======================================================================
    VARIABLES: PID Tuning parameters for valve motor control
@@ -108,6 +118,8 @@ unsigned long arduinoLoopExecutionCount = 0;
    OBJECTS: Configure the motor driver board and PID objects
    ====================================================================== */
 CytronMD boostValveMotorDriver(PWM_DIR, 9, 8); // Pin 9 is PWM, on Arduino Mega this is 'timer 2' or OC2B. We update this timer in the setup block
+PwmOut cytronPwmPin(D9);                       // Configure a variable which we use to tweak the PWM output frequency later on
+
 PID boostValvePressurePID(&currentManifoldPressureGaugeKpa, &currentBoostValveMotorSpeed, &currentTargetBoostKpa, PressureKp, PressureKi, PressureKd, REVERSE);
 PID boostValvePositionPID(&currentBoostValveOpenPercentage, &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage, PositionKp, PositionKi, PositionKd, DIRECT);
 
@@ -135,13 +147,16 @@ ptScheduler ptReportArduinoLoopStats = ptScheduler(PT_TIME_5S);
    SETUP
    ====================================================================== */
 void setup() {
-  SERIAL_PORT_MONITOR.begin(115200); // Hardware serial port for debugging
+  Serial.begin(115200); // Hardware serial port for debugging
   while (!Serial) {
   }; // Wait for serial port to open for debug
-  SERIAL_PORT_HARDWARE1.begin(500000); // Hardware serial port for comms to 'master'
+  Serial1.begin(500000); // Hardware serial port for comms to 'master'
 
-  // Update timer which controls PWM frequency on the valve motor drive. Done to prevent motor noise / whine.
-  TCCR2B = (TCCR2B & 0xF8) | 0x01; // 32kHz
+  // Update PWM frequency via timer for Arduino Mega 2560 and probably Uno R3. Done to prevent motor noise / whine.
+  // TCCR2B = (TCCR2B & 0xF8) | 0x01; // 32kHz
+
+  // Update PWM frequency for Arduino Uno R4. Done to prevent motor noise / whine.
+  cytronPwmPin.begin(20000.0f, 0.0f);
 
   // Get atmospheric reading from manifold and intake pressure sensors before engine starts
   manifoldPressureAtmosphericOffsetRaw = getAveragedAnaloguePinReading(manifoldTmapSensorPressureSignalPin, 20, 0);
@@ -151,13 +166,13 @@ void setup() {
   intakePressureAtmosphericOffsetKpa = calculateBosch3BarKpaFromRaw(intakePressureAtmosphericOffsetRaw);
 
   // Output atmospheric readings
-  SERIAL_PORT_MONITOR.println("\nINFO: Setting current atospheric pressure offsets ... ");
-  SERIAL_PORT_MONITOR.print("  Manifold set at ");
-  SERIAL_PORT_MONITOR.print(manifoldPressureAtmosphericOffsetKpa);
-  SERIAL_PORT_MONITOR.println("kPa");
-  SERIAL_PORT_MONITOR.print("  Intake set at ");
-  SERIAL_PORT_MONITOR.print(intakePressureAtmosphericOffsetKpa);
-  SERIAL_PORT_MONITOR.println("kPa");
+  Serial.println("\nINFO: Setting current atospheric pressure offsets ... ");
+  Serial.print("  Manifold set at ");
+  Serial.print(manifoldPressureAtmosphericOffsetKpa);
+  Serial.println("kPa");
+  Serial.print("  Intake set at ");
+  Serial.print(intakePressureAtmosphericOffsetKpa);
+  Serial.println("kPa");
 
   // Calibrate travel limits of boost valve (drive against full open / closed and record readings)
   setBoostValveTravelLimits(&boostValveMotorDriver, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
@@ -168,6 +183,11 @@ void setup() {
 
   boostValvePositionPID.SetMode(AUTOMATIC);
   boostValvePositionPID.SetOutputLimits(maximumReverseMotorSpeed, maximumForwardMotorSpeed);
+
+  // Setup our WiFi connectivity if needed
+  if (enableWifi) {
+    setupWiFi();
+  }
 }
 
 /* ======================================================================
@@ -277,23 +297,23 @@ void loop() {
 
   // Output plotter friendly data for the Arduino IDE plotter
   if (ptOutputPidDataForLivePlotter.call() && debugPidPlotterOutput) {
-    SERIAL_PORT_MONITOR.print("_zero:");
-    SERIAL_PORT_MONITOR.print(0);
-    SERIAL_PORT_MONITOR.print(",");
-    SERIAL_PORT_MONITOR.print("Target:");
-    SERIAL_PORT_MONITOR.print(currentTargetBoostKpa);
-    SERIAL_PORT_MONITOR.print(",");
-    SERIAL_PORT_MONITOR.print("Actual:");
-    SERIAL_PORT_MONITOR.print(currentManifoldPressureGaugeKpa);
-    SERIAL_PORT_MONITOR.print(",");
-    SERIAL_PORT_MONITOR.print("Proportional:");
-    SERIAL_PORT_MONITOR.println(PressureKp);
-    SERIAL_PORT_MONITOR.print(",");
-    SERIAL_PORT_MONITOR.print("Integral:");
-    SERIAL_PORT_MONITOR.print(PressureKi);
-    SERIAL_PORT_MONITOR.print(",");
-    SERIAL_PORT_MONITOR.print("Derivative:");
-    SERIAL_PORT_MONITOR.println(PressureKd);
+    Serial.print("_zero:");
+    Serial.print(0);
+    Serial.print(",");
+    Serial.print("Target:");
+    Serial.print(currentTargetBoostKpa);
+    Serial.print(",");
+    Serial.print("Actual:");
+    Serial.print(currentManifoldPressureGaugeKpa);
+    Serial.print(",");
+    Serial.print("Proportional:");
+    Serial.println(PressureKp);
+    Serial.print(",");
+    Serial.print("Integral:");
+    Serial.print(PressureKi);
+    Serial.print(",");
+    Serial.print("Derivative:");
+    Serial.println(PressureKd);
   }
 
   // Some temporary debug that may remain in place

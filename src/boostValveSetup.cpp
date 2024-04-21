@@ -4,7 +4,7 @@
 /* ======================================================================
    VARIABLES: Pin constants
    ====================================================================== */
-const byte boostValvePositionSignal1Pin = A14; // Words here
+const byte boostValvePositionSignal1Pin = A0; // Words here
 
 /* ======================================================================
    VARIABLES: General use / functional
@@ -24,7 +24,7 @@ void setBoostValveTravelLimits(CytronMD *boostValveMotorDriver, int *positionRea
   int currentIndexOpen = 0;
   float stabilityThreshold = 2.0; // How close our values need to be to be considered stable
 
-  SERIAL_PORT_MONITOR.print("INFO: Setting boost valve travel limits ... ");
+  Serial.print("INFO: Setting boost valve travel limits ... ");
   // Set motor speed then immediately iterate on potentiometer / position feedback to determine movement limit
   boostValveMotorDriver->setSpeed(-100); // Speed range is from -255 to 255
   while (boostValveClosedPositionSet == false) {
@@ -75,15 +75,15 @@ void setBoostValveTravelLimits(CytronMD *boostValveMotorDriver, int *positionRea
   }
 
   // Set voltage at open position (spring is assisting)
-  SERIAL_PORT_MONITOR.print("\n  Set fully closed (max boost) at ");
-  SERIAL_PORT_MONITOR.print(*positionReadingMinimum * (5.0 / 1023.0));
-  SERIAL_PORT_MONITOR.print("V (");
-  SERIAL_PORT_MONITOR.print(*positionReadingMinimum);
-  SERIAL_PORT_MONITOR.println(")");
+  Serial.print("\n  Set fully closed (max boost) at ");
+  Serial.print(*positionReadingMinimum * (5.0 / 1023.0));
+  Serial.print("V (");
+  Serial.print(*positionReadingMinimum);
+  Serial.println(")");
   // Set voltage at closed position (working against the spring)
-  SERIAL_PORT_MONITOR.print("  Set fully open (no boost) at ");
-  SERIAL_PORT_MONITOR.print(*positionReadingMaximum * (5.0 / 1023.0));
-  SERIAL_PORT_MONITOR.print("V (");
-  SERIAL_PORT_MONITOR.print(*positionReadingMaximum);
-  SERIAL_PORT_MONITOR.println(")\n");
+  Serial.print("  Set fully open (no boost) at ");
+  Serial.print(*positionReadingMaximum * (5.0 / 1023.0));
+  Serial.print("V (");
+  Serial.print(*positionReadingMaximum);
+  Serial.println(")\n");
 }
