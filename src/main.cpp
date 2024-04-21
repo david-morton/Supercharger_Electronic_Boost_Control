@@ -10,6 +10,7 @@
 #include "boostValveSetup.h"
 #include "calculateDesiredBoost.h"
 #include "globalHelpers.h"
+#include "mqttPublish.h"
 #include "sensorsSendReceive.h"
 #include "serialCommunications.h"
 #include "serialMessageProcessing.h"
@@ -113,6 +114,7 @@ int currentVehicleRpm = 0;     // Will be updated via serial comms from master
 bool clutchPressed = true;     // Will be updated via serial comms from master
 
 unsigned long arduinoLoopExecutionCount = 0;
+bool mqttIsConnected = false; // Used to avoid trying to send when there is no connection to the broker
 
 /* ======================================================================
    OBJECTS: Configure the motor driver board and PID objects
@@ -133,6 +135,7 @@ ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_10MS);
 ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_10MS);
 
 // Medium frequency tasks
+ptScheduler ptMqttPublishMetricsToServer = ptScheduler(PT_TIME_50MS);
 ptScheduler ptOutputPidDataForLivePlotter = ptScheduler(PT_TIME_50MS);
 ptScheduler ptCalculateDesiredBoostKpa = ptScheduler(PT_TIME_200MS);
 ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
@@ -187,6 +190,11 @@ void setup() {
   // Setup our WiFi connectivity if needed
   if (enableWifi) {
     setupWiFi();
+  }
+
+  // Setup our MQTT connectivity if needed
+  if (enableWifi && enableMqttPublish) {
+    mqttIsConnected = connectMqttClientToBroker();
   }
 }
 
@@ -327,6 +335,22 @@ void loop() {
   // Used for tuning PID values using potentiometers to adjust P, I and D values
   if (ptReadPidPotsAndUpdateTuning.call()) {
     readPidPotsAndUpdateTuning(&boostValvePressurePID, &PressureKp, &PressureKi, &PressureKd);
+  }
+
+  // Publish metrics via MQTT to server if needed
+  if (ptMqttPublishMetricsToServer.call() && mqttIsConnected) {
+    // Publish pressure metrics
+    std::map<String, double> metricsPressures;
+    metricsPressures["Target"] = currentTargetBoostKpa;
+    metricsPressures["Actual"] = currentManifoldPressureGaugeKpa;
+    publishMqttMetrics("pressures", metricsPressures);
+
+    // Publish PID control metrics if needed
+    std::map<String, double> metricsPids;
+    metricsPids["kP"] = PressureKp;
+    metricsPids["kI"] = PressureKi;
+    metricsPids["kD"] = PressureKd;
+    publishMqttMetrics("pids", metricsPids);
   }
 
   // Increment loop counter if needed so we can report on stats

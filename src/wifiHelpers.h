@@ -3,6 +3,8 @@
 
 #include <WiFiS3.h>
 
+extern WiFiClient wifiClient;
+
 void setupWiFi();
 void printWifiData();
 void printCurrentNet();

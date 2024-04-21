@@ -1,5 +1,11 @@
 #include "wifiHelpers.h"
 #include "arduinoSecrets.h"
+#include <WiFiS3.h>
+
+/* ======================================================================
+   VARIABLES: Global use
+   ====================================================================== */
+WiFiClient wifiClient;
 
 /* ======================================================================
    VARIABLES: General use
