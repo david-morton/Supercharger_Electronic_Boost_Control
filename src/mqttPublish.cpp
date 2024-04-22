@@ -4,7 +4,9 @@
 #include <PubSubClient.h>
 #include <map>
 
-// Define toggle for connection state
+/* ======================================================================
+   VARIABLES & OBJECTS: General use
+   ====================================================================== */
 bool mqttBrokerConnected = false;
 
 IPAddress mqtt_server(192, 168, 10, 249); // Mosquitto MQTT broker address on laptop VM
