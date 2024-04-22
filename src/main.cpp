@@ -60,10 +60,10 @@ bool debugValveControl = false;
 bool debugBoost = false;
 bool debugGeneral = false;
 bool debugPid = false;
-bool debugPidPlotterOutput = true;
+bool debugPidPlotterOutput = false;
 
-bool reportSerialMessageStats = false;
-bool reportArduinoLoopStats = false;
+bool reportSerialMessageStats = true;
+bool reportArduinoLoopStats = true;
 
 /* ======================================================================
    VARIABLES: Pin constants
@@ -351,6 +351,11 @@ void loop() {
     metricsPids["kI"] = PressureKi;
     metricsPids["kD"] = PressureKd;
     publishMqttMetrics("pids", metricsPids);
+
+    // Publish valve open metric if needed
+    std::map<String, double> metricsValveOpen;
+    metricsValveOpen["Percentage"] = currentBoostValveOpenPercentage;
+    publishMqttMetrics("valveopen", metricsValveOpen);
   }
 
   // Increment loop counter if needed so we can report on stats
