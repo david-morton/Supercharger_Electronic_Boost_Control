@@ -2,7 +2,7 @@
 #include "pwm.h"
 
 /* ======================================================================
-   VARIABLES: General use
+   OBJECT DECLARATIOS
    ====================================================================== */
 PwmOut cytronPwm(MOTOR_PWM_PIN);
 
