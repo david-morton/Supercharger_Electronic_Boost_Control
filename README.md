@@ -44,9 +44,18 @@ Command ID's in use are as below. The master is the 'main' car module which driv
 | 2           | Slave to master | errorStatus,currentBoost,currentTemp,currentValveOpenPercentage | Response to command ID 0                          |
 
 # Technical Notes
-- Words here later
+### Motor Driving & Setting PWM Frequency On Arduino Mega 2560
+The easiest way on a Mega (and presumably Uno etc) is to use the CytronMotorDriver library. Follow their example code to configure and control the motor as needed. The one thing I did was to change the PWM frequency as the noise of the motor at the default was very loud.
 
-### Boost Control Rules / Behaviour
+I was using pin D9 for the PWM and on the Mega the timer setting to get 32kHz was as below. It will pay to look up the mapping of timers to pins for your board so you understand the potentially unwanted side effects of changing the timer frequency.
+```
+TCCR2B = (TCCR2B & 0xF8) | 0x01; // 32kHz
+```
+
+### Motor Driving & Setting PWM Frequency On Arduino Uno R4 WiFi
+I was unable to set a custom PWM frequency AND use the Cytron library. Talking to their support had them recommend not using the library and instead doing my own control code, which is what is in this repo.
+
+# Boost Control Rules / Behaviour
 The following conditions cause the valve to immediately drive to 100% open (not relying on the return spring alone)
 - Clutch pressed (sent over serial from master)
 - Neutral gear detected (sent over serial from master)
@@ -58,7 +67,7 @@ The following conditions cause the valve to return to 100% open using the return
   - No serial comms from master
   - Overboost for more than allowed duration
 
-### Todo List
+# Todo List
 - Perform checks of valve travel limits which were determined and fire critical failure if no good (not enough spread of readings)
 - Ensure we can reliably detect if car is on when performing setup. Could cause calibration to be way off. Critical fail if not confident.
 - Check calibration of atmospheric pressure value when performing setup. Critical fail if not happy.

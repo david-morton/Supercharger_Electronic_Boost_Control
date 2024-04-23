@@ -1,5 +1,5 @@
 #include "boostValveControl.h"
-#include "CytronMotorDriver.h"
+#include "cytronMotorDriver.h"
 #include "globalHelpers.h"
 #include <PID_v1.h>
 
@@ -28,22 +28,22 @@ float getBoostValveOpenPercentage(int *positionReadingCurrent, int *positionRead
 /* ======================================================================
    FUNCTION: Drive valve to target boost by PID pressure feedback
    ====================================================================== */
-void driveBoostValveToTargetByPressurePid(CytronMD *boostValveMotorDriver, PID *boostValvePressurePid, double *boostValveMotorSpeed,
+void driveBoostValveToTargetByPressurePid(PID *boostValvePressurePid, double *boostValveMotorSpeed,
                                           int *boostValveMinimumRaw, int *boostValveMaximumRaw, int *currentBoostValvePositionReadingRaw) {
   // Update the motor speed based on current position feedback
   if (*currentBoostValvePositionReadingRaw >= *boostValveMaximumRaw || *currentBoostValvePositionReadingRaw <= *boostValveMinimumRaw) {
-    boostValveMotorDriver->setSpeed(0); // We are at the detected travel limit of the valve, no need to drive it into the stop
+    setCytronSpeedAndDirection(0.0);    // We are at the detected travel limit of the valve, no need to drive it into the stop
   } else {
     boostValvePressurePid->Compute();
-    boostValveMotorDriver->setSpeed(*boostValveMotorSpeed);
+    setCytronSpeedAndDirection(*boostValveMotorSpeed);
   }
 }
 
 /* ======================================================================
    FUNCTION: Drive valve to target open percentage by PID position feedback
    ====================================================================== */
-void driveBoostValveToTargetByOpenPercentagePid(CytronMD *boostValveMotorDriver, PID *boostValvePositionPid, double *currentBoostValveOpenPercentage,
+void driveBoostValveToTargetByOpenPercentagePid(PID *boostValvePositionPid, double *currentBoostValveOpenPercentage,
                                                 double *boostValveMotorSpeed, double *currentTargetBoostValveOpenPercentage) {
   boostValvePositionPid->Compute();
-  boostValveMotorDriver->setSpeed(*boostValveMotorSpeed);
+  setCytronSpeedAndDirection(*boostValveMotorSpeed);
 }

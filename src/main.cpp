@@ -1,4 +1,3 @@
-#include "CytronMotorDriver.h"
 #include "PID_v1.h"
 #include "pwm.h"
 #include <Arduino.h>
@@ -9,6 +8,7 @@
 #include "boostValveControl.h"
 #include "boostValveSetup.h"
 #include "calculateDesiredBoost.h"
+#include "cytronMotorDriver.h"
 #include "globalHelpers.h"
 #include "mqttPublish.h"
 #include "pidPotentiometers.h"
@@ -32,10 +32,10 @@ bool debugSerialReceive = false;
 bool debugSerialSend = false;
 bool debugValveControl = false;
 bool debugBoost = false;
-bool debugGeneral = false;
+bool debugGeneral = true;
 bool debugPid = false;
 
-bool reportSerialMessageStats = true;
+bool reportSerialMessageStats = false;
 bool reportArduinoLoopStats = false;
 
 /* ======================================================================
@@ -56,8 +56,8 @@ double PositionKp = 2.5; // Proportional term     2.5
 double PositionKi = 5.0; // Integral term        5.0
 double PositionKd = 0.0; // Derivative term      0.0
 
-const int maximumReverseMotorSpeed = -150; // This is also hard coded in the setBoostValveTravelLimits function. This is closing the valve against the spring.
-const int maximumForwardMotorSpeed = 100;  // This is also hard coded in the setBoostValveTravelLimits function This is opening the valve with the spring.
+const int maximumReverseMotorSpeed = -60; // This is also hard coded in the setBoostValveTravelLimits function. This is closing the valve against the spring.
+const int maximumForwardMotorSpeed = 40;  // This is also hard coded in the setBoostValveTravelLimits function This is opening the valve with the spring.
 
 /* ======================================================================
    VARIABLES: General use / functional
@@ -92,9 +92,6 @@ bool mqttIsConnected = false; // Used to avoid trying to send when there is no c
 /* ======================================================================
    OBJECTS: Configure the motor driver board and PID objects
    ====================================================================== */
-CytronMD boostValveMotorDriver(PWM_DIR, 9, 8); // Pin 9 is PWM, on Arduino Mega this is 'timer 2' or OC2B. We update this timer in the setup block
-PwmOut pwm(5);                                 // Configure a variable which we use to tweak the PWM output frequency later on
-
 PID boostValvePressurePID(&currentManifoldPressureGaugeKpa, &currentBoostValveMotorSpeed, &currentTargetBoostKpa, PressureKp, PressureKi, PressureKd, REVERSE);
 PID boostValvePositionPID(&currentBoostValveOpenPercentage, &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage, PositionKp, PositionKi, PositionKd, DIRECT);
 
@@ -130,13 +127,6 @@ void setup() {
   }; // Wait for serial port to open for debug
   Serial1.begin(500000); // Hardware serial port for comms to 'master'
 
-  // Update PWM frequency via timer for Arduino Mega 2560 and probably Uno R3. Done to prevent motor noise / whine.
-  // TCCR2B = (TCCR2B & 0xF8) | 0x01; // 32kHz
-
-  // Update PWM frequency for Arduino Uno R4. Done to prevent motor noise / whine.
-  pwm.begin(20000.0f, 0.0f);
-  pwm.pulse_perc(50.0f);
-
   // Get atmospheric reading from manifold and intake pressure sensors before engine starts
   manifoldPressureAtmosphericOffsetRaw = getAveragedAnaloguePinReading(manifoldTmapSensorPressureSignalPin, 20, 0);
   intakePressureAtmosphericOffsetRaw = getAveragedAnaloguePinReading(intakeTmapSensorPressureSignalPin, 20, 0);
@@ -153,8 +143,11 @@ void setup() {
   Serial.print(intakePressureAtmosphericOffsetKpa);
   Serial.println("kPa");
 
+  // Initialise the Cytron motor driver board
+  initCytronMotorDriver();
+
   // Calibrate travel limits of boost valve (drive against full open / closed and record readings)
-  setBoostValveTravelLimits(&boostValveMotorDriver, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
+  setBoostValveTravelLimits(&boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
 
   // Initialize the PID controller and set the motor speed limits
   boostValvePressurePID.SetMode(AUTOMATIC);
@@ -243,7 +236,7 @@ void loop() {
   // If critical alarm is set, stop the motor and let the return spring open the valve to 'fail safe'
   if (ptCalculatePidAndDriveValve.call()) {
     if (globalAlarmCritical) {
-      boostValveMotorDriver.setSpeed(0);
+      setCytronSpeedAndDirection(0.0);
       return;
     }
 
@@ -254,7 +247,7 @@ void loop() {
         usingPressureControl = false;
         DEBUG_PID("Switching control mode to POSITIONAL");
       }
-      driveBoostValveToTargetByOpenPercentagePid(&boostValveMotorDriver, &boostValvePositionPID, &currentBoostValveOpenPercentage, &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage);
+      driveBoostValveToTargetByOpenPercentagePid(&boostValvePositionPID, &currentBoostValveOpenPercentage, &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage);
       return;
     }
 
@@ -266,7 +259,7 @@ void loop() {
           usingPressureControl = false;
           DEBUG_PID("Switching control mode to POSITIONAL");
         }
-        driveBoostValveToTargetByOpenPercentagePid(&boostValveMotorDriver, &boostValvePositionPID, &currentBoostValveOpenPercentage, &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage);
+        driveBoostValveToTargetByOpenPercentagePid(&boostValvePositionPID, &currentBoostValveOpenPercentage, &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage);
         return;
       } else {
         if (usingPositionControl) {
@@ -274,7 +267,7 @@ void loop() {
           usingPressureControl = true;
           DEBUG_PID("Switching control mode to PRESSURE");
         }
-        driveBoostValveToTargetByPressurePid(&boostValveMotorDriver, &boostValvePressurePID, &currentBoostValveMotorSpeed, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw, &currentBoostValvePositionReadingRaw);
+        driveBoostValveToTargetByPressurePid(&boostValvePressurePID, &currentBoostValveMotorSpeed, &boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw, &currentBoostValvePositionReadingRaw);
       }
     }
   }

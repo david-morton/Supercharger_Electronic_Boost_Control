@@ -37,8 +37,8 @@ void setupWiFi() {
   }
 
   Serial.print("You're connected to the network");
-  printCurrentNet();
-  printWifiData();
+  // printCurrentNet();
+  // printWifiData();
 }
 
 /* ======================================================================
