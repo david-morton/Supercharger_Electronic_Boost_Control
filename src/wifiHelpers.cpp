@@ -33,7 +33,7 @@ void setupWiFi() {
     Serial.print("Attempting to connect to WPA SSID: ");
     Serial.println(ssid);
     status = WiFi.begin(ssid, pass);
-    delay(10000);
+    delay(1000);
   }
 
   Serial.print("You're connected to the network");

@@ -11,45 +11,19 @@
 #include "calculateDesiredBoost.h"
 #include "globalHelpers.h"
 #include "mqttPublish.h"
+#include "pidPotentiometers.h"
 #include "sensorsSendReceive.h"
 #include "serialCommunications.h"
 #include "serialMessageProcessing.h"
 #include "wifiHelpers.h"
 
 /* ======================================================================
-   VARIABLES: Temporary PID debug items, used with 3 potentiometers
-   ====================================================================== */
-const byte pidPinProportional = A3;
-const byte pidPinIntegral = A4;
-const byte pidPinDerivative = A5;
-
-int pidRangeMaxProportional = 75;
-int pidRangeMaxIntegral = 20;
-int pidRangeMaxDerivative = 20;
-
-ptScheduler ptReadPidPotsAndUpdateTuning = ptScheduler(PT_TIME_100MS);
-
-void readPidPotsAndUpdateTuning(PID *pidMotor, double *pidLiveValueProportional, double *pidLiveValueIntegral, double *pidLiveValueDerivative) {
-  int pidPotProportionalRaw = getAveragedAnaloguePinReading(pidPinProportional, 10, 0);
-  int pidPotIntegralRaw = getAveragedAnaloguePinReading(pidPinIntegral, 10, 0);
-  int pidPotDerivativeRaw = getAveragedAnaloguePinReading(pidPinDerivative, 10, 0);
-
-  // Adjust the mapping for higher precision
-  double factor = 100.0;
-
-  *pidLiveValueProportional = map(pidPotProportionalRaw, 0, 1023, pidRangeMaxProportional, 0);
-  *pidLiveValueIntegral = map(pidPotIntegralRaw, 0, 1023, pidRangeMaxIntegral * factor, 0) / factor;
-  *pidLiveValueDerivative = map(pidPotDerivativeRaw, 0, 1023, pidRangeMaxDerivative * factor, 0) / factor;
-
-  pidMotor->SetTunings(*pidLiveValueProportional, *pidLiveValueIntegral, *pidLiveValueDerivative);
-}
-
-/* ======================================================================
    VARIABLES: Major functional area toggles
    ====================================================================== */
 bool enableWifi = true;
 bool enablePotPidTuning = true;
-bool enableMqttPublish = true;
+bool enableMqttPublish = true;       // Output to MQTT for display via Grafana Live
+bool enablePidPlotterOutput = false; // Output for Arduino IDE's serial plotter
 
 /* ======================================================================
    VARIABLES: Debug and stat output
@@ -60,10 +34,9 @@ bool debugValveControl = false;
 bool debugBoost = false;
 bool debugGeneral = false;
 bool debugPid = false;
-bool debugPidPlotterOutput = false;
 
 bool reportSerialMessageStats = true;
-bool reportArduinoLoopStats = true;
+bool reportArduinoLoopStats = false;
 
 /* ======================================================================
    VARIABLES: Pin constants
@@ -75,9 +48,9 @@ const byte intakeTmapSensorPressureSignalPin = A2;
 /* ======================================================================
    VARIABLES: PID Tuning parameters for valve motor control
    ====================================================================== */
-double PressureKp = 25.0; // Proportional term      30    25    19      9
-double PressureKi = 2.0;  // Integral term          7     2     4.4     4
-double PressureKd = 1.0;  // Derivative term        2     1     1.4     1.4
+double PressureKp = 9.0; // Proportional term      30    25    19      9       9
+double PressureKi = 3.3; // Integral term          7     2     4.4     4       3.3
+double PressureKd = 1.3; // Derivative term        2     1     1.4     1.4     1.3
 
 double PositionKp = 2.5; // Proportional term     2.5
 double PositionKi = 5.0; // Integral term        5.0
@@ -102,7 +75,7 @@ int currentBoostValvePositionReadingRaw, boostValvePositionReadingMinimumRaw, bo
 double currentBoostValveMotorSpeed = 0;
 double currentBoostValveOpenPercentage;
 double currentTargetBoostValveOpenPercentage = 100.0;
-const float valvePositionToPressureControlTransitionFactor = 0.9;
+const float valvePositionToPressureControlTransitionFactor = 0.8;
 bool usingPressureControl, usingPositionControl;
 
 // Other variables
@@ -120,7 +93,7 @@ bool mqttIsConnected = false; // Used to avoid trying to send when there is no c
    OBJECTS: Configure the motor driver board and PID objects
    ====================================================================== */
 CytronMD boostValveMotorDriver(PWM_DIR, 9, 8); // Pin 9 is PWM, on Arduino Mega this is 'timer 2' or OC2B. We update this timer in the setup block
-PwmOut cytronPwmPin(D9);                       // Configure a variable which we use to tweak the PWM output frequency later on
+PwmOut pwm(5);                                 // Configure a variable which we use to tweak the PWM output frequency later on
 
 PID boostValvePressurePID(&currentManifoldPressureGaugeKpa, &currentBoostValveMotorSpeed, &currentTargetBoostKpa, PressureKp, PressureKi, PressureKd, REVERSE);
 PID boostValvePositionPID(&currentBoostValveOpenPercentage, &currentBoostValveMotorSpeed, &currentTargetBoostValveOpenPercentage, PositionKp, PositionKi, PositionKd, DIRECT);
@@ -135,13 +108,15 @@ ptScheduler ptGetManifoldPressure = ptScheduler(PT_TIME_10MS);
 ptScheduler ptSerialReadAndProcessMessage = ptScheduler(PT_TIME_10MS);
 
 // Medium frequency tasks
-ptScheduler ptMqttPublishMetricsToServer = ptScheduler(PT_TIME_50MS);
+ptScheduler ptMqttPublishMetricsToServer100Ms = ptScheduler(PT_TIME_100MS);
 ptScheduler ptOutputPidDataForLivePlotter = ptScheduler(PT_TIME_50MS);
 ptScheduler ptCalculateDesiredBoostKpa = ptScheduler(PT_TIME_200MS);
 ptScheduler ptCheckFaultConditions = ptScheduler(PT_TIME_200MS);
-ptScheduler ptOutputTargetAndCurrentBoostDebug = ptScheduler(PT_TIME_500MS);
 
 // Low frequency tasks
+ptScheduler ptOutputTargetAndCurrentBoostDebug = ptScheduler(PT_TIME_500MS);
+ptScheduler ptReadPidPotsAndUpdateTuning = ptScheduler(PT_TIME_500MS);
+ptScheduler ptMqttPublishMetricsToServer1S = ptScheduler(PT_TIME_1S);
 ptScheduler ptSerialCalculateMessageQualityStats = ptScheduler(PT_TIME_5S);
 ptScheduler ptSerialReportMessageQualityStats = ptScheduler(PT_TIME_5S);
 ptScheduler ptReportArduinoLoopStats = ptScheduler(PT_TIME_5S);
@@ -159,7 +134,8 @@ void setup() {
   // TCCR2B = (TCCR2B & 0xF8) | 0x01; // 32kHz
 
   // Update PWM frequency for Arduino Uno R4. Done to prevent motor noise / whine.
-  cytronPwmPin.begin(20000.0f, 0.0f);
+  pwm.begin(20000.0f, 0.0f);
+  pwm.pulse_perc(50.0f);
 
   // Get atmospheric reading from manifold and intake pressure sensors before engine starts
   manifoldPressureAtmosphericOffsetRaw = getAveragedAnaloguePinReading(manifoldTmapSensorPressureSignalPin, 20, 0);
@@ -304,24 +280,8 @@ void loop() {
   }
 
   // Output plotter friendly data for the Arduino IDE plotter
-  if (ptOutputPidDataForLivePlotter.call() && debugPidPlotterOutput) {
-    Serial.print("_zero:");
-    Serial.print(0);
-    Serial.print(",");
-    Serial.print("Target:");
-    Serial.print(currentTargetBoostKpa);
-    Serial.print(",");
-    Serial.print("Actual:");
-    Serial.print(currentManifoldPressureGaugeKpa);
-    Serial.print(",");
-    Serial.print("Proportional:");
-    Serial.println(PressureKp);
-    Serial.print(",");
-    Serial.print("Integral:");
-    Serial.print(PressureKi);
-    Serial.print(",");
-    Serial.print("Derivative:");
-    Serial.println(PressureKd);
+  if (ptOutputPidDataForLivePlotter.call() && enablePidPlotterOutput) {
+    outputArduinoIdePlotterData(&currentTargetBoostKpa, &currentManifoldPressureGaugeKpa, &PressureKp, &PressureKi, &PressureKd);
   }
 
   // Some temporary debug that may remain in place
@@ -333,29 +293,31 @@ void loop() {
   }
 
   // Used for tuning PID values using potentiometers to adjust P, I and D values
-  if (ptReadPidPotsAndUpdateTuning.call()) {
+  if (ptReadPidPotsAndUpdateTuning.call() && enablePotPidTuning) {
     readPidPotsAndUpdateTuning(&boostValvePressurePID, &PressureKp, &PressureKi, &PressureKd);
   }
 
   // Publish metrics via MQTT to server if needed
-  if (ptMqttPublishMetricsToServer.call() && mqttIsConnected) {
+  if (ptMqttPublishMetricsToServer100Ms.call() && mqttIsConnected) {
     // Publish pressure metrics
     std::map<String, double> metricsPressures;
     metricsPressures["Target"] = currentTargetBoostKpa;
     metricsPressures["Actual"] = currentManifoldPressureGaugeKpa;
     publishMqttMetrics("pressures", metricsPressures);
 
+    // Publish valve open metric if needed
+    std::map<String, double> metricsValveOpen;
+    metricsValveOpen["Percentage"] = currentBoostValveOpenPercentage;
+    publishMqttMetrics("valveopen", metricsValveOpen);
+  }
+
+  if (ptMqttPublishMetricsToServer1S.call() && mqttIsConnected) {
     // Publish PID control metrics if needed
     std::map<String, double> metricsPids;
     metricsPids["kP"] = PressureKp;
     metricsPids["kI"] = PressureKi;
     metricsPids["kD"] = PressureKd;
     publishMqttMetrics("pids", metricsPids);
-
-    // Publish valve open metric if needed
-    std::map<String, double> metricsValveOpen;
-    metricsValveOpen["Percentage"] = currentBoostValveOpenPercentage;
-    publishMqttMetrics("valveopen", metricsValveOpen);
   }
 
   // Increment loop counter if needed so we can report on stats

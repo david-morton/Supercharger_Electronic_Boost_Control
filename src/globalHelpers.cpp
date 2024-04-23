@@ -91,3 +91,27 @@ void reportArduinoLoopRate(unsigned long *loopCount) {
   *loopCount = 1;
   arduinoLoopExecutionPreviousExecutionMillis = millis();
 }
+
+/* ======================================================================
+   FUNCTION: Report Arduino loop rate information
+   ====================================================================== */
+void outputArduinoIdePlotterData(double *currentTargetBoostKpa, double *currentManifoldPressureGaugeKpa,
+                                 double *PressureKp, double *PressureKi, double *PressureKd) {
+  Serial.print("_zeroline:");
+  Serial.print(0);
+  Serial.print(",");
+  Serial.print("Target:");
+  Serial.print(*currentTargetBoostKpa);
+  Serial.print(",");
+  Serial.print("Actual:");
+  Serial.print(*currentManifoldPressureGaugeKpa);
+  Serial.print(",");
+  Serial.print("Proportional:");
+  Serial.println(*PressureKp);
+  Serial.print(",");
+  Serial.print("Integral:");
+  Serial.print(*PressureKi);
+  Serial.print(",");
+  Serial.print("Derivative:");
+  Serial.println(*PressureKd);
+}
