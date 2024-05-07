@@ -18,10 +18,10 @@ PubSubClient mqttClient(wifiClient);      // Create MQTT client on WiFi
    ====================================================================== */
 bool connectMqttClientToBroker() {
   if (!mqttClient.connected()) {
-    Serial.println("INFO - Connecting to MQTT broker");
+    Serial.println("\nINFO - Connecting to MQTT broker");
     mqttClient.setServer(mqtt_server, mqtt_port);
     mqttClient.setKeepAlive(5);
-    if (mqttClient.connect("arduino-client")) {
+    if (delay(1000); mqttClient.connect("arduino-client")) {
       Serial.println("\tOK - MQTT Client connected");
       mqttBrokerConnected = true;
       return true;

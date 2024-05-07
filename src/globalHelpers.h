@@ -79,10 +79,12 @@ extern unsigned long lastSuccessfulCommandId1Processed;
 /* ======================================================================
    FUNCTION PROTOTYPES
    ====================================================================== */
-void checkAndSetFaultConditions(double *, double *);
 float calculateBosch3BarKpaFromRaw(float);
-int getAveragedAnaloguePinReading(byte pin, int samples, int delayMs);
-void reportArduinoLoopRate(unsigned long *);
+int getAveragedAnaloguePinReading(byte, int, int);
+int getAveragedMuxAnalogueChannelReading(byte, int, int);
+void checkAndSetFaultConditions(double *, double *);
 void outputArduinoIdePlotterData(double *, double *, double *, double *, double *);
+void reportArduinoLoopRate(unsigned long *);
+void setupMux();
 
 #endif

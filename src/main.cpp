@@ -33,7 +33,7 @@ bool debugSerialSend = false;
 bool debugValveControl = false;
 bool debugBoost = false;
 bool debugGeneral = true;
-bool debugPid = false;
+bool debugPid = true;
 
 bool reportSerialMessageStats = false;
 bool reportArduinoLoopStats = false;
@@ -44,6 +44,9 @@ bool reportArduinoLoopStats = false;
 const byte boostValvePositionSignalPin = A0;
 const byte manifoldTmapSensorPressureSignalPin = A1;
 const byte intakeTmapSensorPressureSignalPin = A2;
+
+// Additional pins assigned in globalHelpers.cpp for multiplexer board
+// 4, 5, 6, 7, A3
 
 /* ======================================================================
    VARIABLES: PID Tuning parameters for valve motor control
@@ -145,6 +148,9 @@ void setup() {
 
   // Initialise the Cytron motor driver board
   initCytronMotorDriver();
+
+  // Initialise the multiplexer analogue input board input pin
+  setupMux();
 
   // Calibrate travel limits of boost valve (drive against full open / closed and record readings)
   setBoostValveTravelLimits(&boostValvePositionReadingMinimumRaw, &boostValvePositionReadingMaximumRaw);
@@ -281,7 +287,7 @@ void loop() {
   if (ptOutputTargetAndCurrentBoostDebug.call()) {
     DEBUG_PID("Target boost is " + String(currentTargetBoostKpa) + "kPa and current is " + String(currentManifoldPressureGaugeKpa) + "kPa");
     // THIS NEEDS TO BE CHANGED BACK TO DEBUG_BOOST
-    DEBUG_PID("Proportional value: " + String(PressureKp, 2) + " Integral value: " + String(PressureKi, 2) + " Derivative value: " + String(PressureKd, 2));
+    DEBUG_PID("Proportional value: " + String(PressureKp, 2) + " Integral value: " + String(PressureKi, 2) + " Derivative value: " + String(PressureKd, 2) + "\n");
     // DEBUG_PID("Current open percentage: " + String(currentBoostValveOpenPercentage, 2) + " Target open percentage: " + String(currentTargetBoostValveOpenPercentage, 2) + "\n");
   }
 
