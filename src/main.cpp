@@ -51,13 +51,13 @@ const byte intakeTmapSensorPressureSignalPin = A2;
 /* ======================================================================
    VARIABLES: PID Tuning parameters for valve motor control
    ====================================================================== */
-double PressureKp = 9.0; // Proportional term      30    25    19      9       9
-double PressureKi = 3.3; // Integral term          7     2     4.4     4       3.3
-double PressureKd = 1.3; // Derivative term        2     1     1.4     1.4     1.3
+double PressureKp = 9.0; // Proportional term
+double PressureKi = 3.3; // Integral term
+double PressureKd = 1.3; // Derivative term
 
-double PositionKp = 2.5; // Proportional term     2.5
-double PositionKi = 5.0; // Integral term        5.0
-double PositionKd = 0.0; // Derivative term      0.0
+double PositionKp = 2.5; // Proportional term
+double PositionKi = 5.0; // Integral term
+double PositionKd = 0.0; // Derivative term
 
 const int maximumReverseMotorSpeed = -60; // This is also hard coded in the setBoostValveTravelLimits function. This is closing the valve against the spring.
 const int maximumForwardMotorSpeed = 40;  // This is also hard coded in the setBoostValveTravelLimits function This is opening the valve with the spring.
